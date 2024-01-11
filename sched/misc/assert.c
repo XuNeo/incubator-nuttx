@@ -516,6 +516,25 @@ static void dump_deadlock(void)
 #endif
 
 /****************************************************************************
+ * Name: pause_all_cpu
+ ****************************************************************************/
+
+#ifdef CONFIG_SMP
+static void pause_all_cpu(void)
+{
+  int cpu;
+
+  for (cpu = 0; cpu < CONFIG_SMP_NCPUS; cpu++)
+    {
+      if (cpu != this_cpu())
+        {
+          up_cpu_pause(cpu);
+        }
+    }
+}
+#endif
+
+/****************************************************************************
  * Public Functions
  ****************************************************************************/
 
@@ -571,6 +590,13 @@ void _assert(FAR const char *filename, int linenum,
 #endif
     {
       g_fatal_assert = true;
+    }
+
+  if (fatal)
+    {
+#ifdef CONFIG_SMP
+      pause_all_cpu();
+#endif
     }
 
   notifier_data.rtcb = rtcb;
