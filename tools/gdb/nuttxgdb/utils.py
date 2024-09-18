@@ -1,5 +1,5 @@
 ############################################################################
-# tools/gdb/nuttx_gdb/utils.py
+# tools/gdb/nuttxgdb/utils.py
 #
 # SPDX-License-Identifier: Apache-2.0
 #

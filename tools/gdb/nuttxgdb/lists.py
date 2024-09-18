@@ -1,5 +1,5 @@
 ############################################################################
-# tools/gdb/nuttx_gdb/lists.py
+# tools/gdb/nuttxgdb/lists.py
 #
 # SPDX-License-Identifier: Apache-2.0
 #
