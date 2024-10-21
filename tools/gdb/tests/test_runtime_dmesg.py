@@ -1,5 +1,5 @@
 ############################################################################
-# tools/gdb/tests/test_runtime_stack.py
+# tools/gdb/tests/test_runtime_dmesg.py
 #
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
@@ -20,21 +20,14 @@
 
 import unittest
 
-import gdb
-from nuttxgdb.stack import fetch_stacks
-
 # The following test cases require running the program as
 # we need to access the memory of the program
 
 
-class TestStack(unittest.TestCase):
+class TestDmesg(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         pass
 
-    def test_fetch_stacks(self):
-        stacks = fetch_stacks()
-        self.assertNotEqual(stacks, dict())
-
-    def test_list_stacks(self):
-        gdb.execute("stack-usage")
+    def test_dmesg(self):
+        pass

@@ -1,5 +1,5 @@
 ############################################################################
-# tools/gdb/tests/test_runtime_stack.py
+# tools/gdb/tests/test_runtime_fs.py
 #
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
@@ -21,20 +21,38 @@
 import unittest
 
 import gdb
-from nuttxgdb.stack import fetch_stacks
 
 # The following test cases require running the program as
 # we need to access the memory of the program
 
 
-class TestStack(unittest.TestCase):
+class TestFs(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         pass
 
-    def test_fetch_stacks(self):
-        stacks = fetch_stacks()
-        self.assertNotEqual(stacks, dict())
+    def check_output(self, out, expect=""):
+        if expect not in out:
+            self.fail(f"Got: {out}")
 
-    def test_list_stacks(self):
-        gdb.execute("stack-usage")
+    def test_fdinfo(self):
+        out = gdb.execute("fdinfo", to_string=True)
+        self.check_output(out, expect="PID: 1")
+
+    def test_fdinfo_pid(self):
+        out = gdb.execute("fdinfo -p 1", to_string=True)
+        self.check_output(out, expect="PID: 1")
+
+    def test_mount(self):
+        out = gdb.execute("mount", to_string=True)
+        self.check_output(out, expect="/proc type procfs")
+
+    def test_foreach_inode(self):
+        out = gdb.execute("foreach inode", to_string=True)
+        self.check_output(out, expect="[console],")
+
+    def test_foreach_inode_addr(self):
+        pass
+
+    def test_info_shm(self):
+        pass
