@@ -39,6 +39,7 @@
 #include <errno.h>
 
 #include <nuttx/kmalloc.h>
+#include <nuttx/mm/kasan.h>
 #include <nuttx/fs/fs.h>
 #include <nuttx/drivers/ramdisk.h>
 
@@ -174,6 +175,13 @@ static int rd_open(FAR struct inode *inode)
 
   /* Increment the open reference count */
 
+#  ifdef CONFIG_MM_KASAN
+  if (dev->rd_crefs == 0)
+    {
+      kasan_unpoison(dev->rd_buffer, dev->rd_nsectors * dev->rd_sectsize);
+    }
+#  endif
+
   dev->rd_crefs++;
   DEBUGASSERT(dev->rd_crefs > 0);
 
@@ -208,6 +216,10 @@ static int rd_close(FAR struct inode *inode)
 
   if (dev->rd_crefs == 0)
     {
+#  ifdef CONFIG_MM_KASAN
+      kasan_poison(dev->rd_buffer, dev->rd_nsectors * dev->rd_sectsize);
+#  endif
+
       /* Yes..  Have we been unlinked? */
 
       if (RDFLAG_IS_UNLINKED(dev->rd_flags))
