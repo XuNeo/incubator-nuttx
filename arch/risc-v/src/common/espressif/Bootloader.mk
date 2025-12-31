@@ -41,13 +41,25 @@ ifndef MCUBOOT_VERSION
 	MCUBOOT_VERSION = $(CONFIG_ESPRESSIF_MCUBOOT_VERSION)
 endif
 
-ifndef MCUBOOT_URL
-	MCUBOOT_URL = https://github.com/mcu-tools/mcuboot
-endif
+# MCUboot tarball configuration
+MCUBOOT_TARBALL = $(MCUBOOT_VERSION).tar.gz
+MCUBOOT_UNPACKNAME = mcuboot-$(patsubst v%,%,$(MCUBOOT_VERSION))
+MCUBOOT_URL_BASE = https://github.com/mcu-tools/mcuboot/archive/refs/tags
+
+# mbedtls submodule for MCUboot (queried from MCUboot repository)
+# For MCUboot v2.1.0, mbedtls is at commit: 1a0b220d9e25a9fdedf750bfb86664cf6e032b7c
+MCUBOOT_MBEDTLS_VERSION = 1a0b220d9e25a9fdedf750bfb86664cf6e032b7c
+MCUBOOT_MBEDTLS_TARBALL = $(MCUBOOT_MBEDTLS_VERSION).tar.gz
+MCUBOOT_MBEDTLS_URL_BASE = https://github.com/Mbed-TLS/mbedtls/archive
 
 ifndef ESP_HAL_3RDPARTY_VERSION_FOR_MCUBOOT
 	ESP_HAL_3RDPARTY_VERSION_FOR_MCUBOOT = 911dbec8e4a92e70056b58a3d2b0d965b8b7bcc9
 endif
+
+# HAL tarball configuration for MCUboot
+ESP_HAL_MCUBOOT_TARBALL = $(ESP_HAL_3RDPARTY_VERSION_FOR_MCUBOOT).tar.gz
+ESP_HAL_MCUBOOT_UNPACKNAME = esp-hal-3rdparty-$(ESP_HAL_3RDPARTY_VERSION_FOR_MCUBOOT)
+ESP_HAL_MCUBOOT_URL_BASE = https://github.com/espressif/esp-hal-3rdparty/archive
 
 # Helpers for creating the configuration file
 
@@ -119,21 +131,34 @@ ifeq ($(CONFIG_ESPRESSIF_BOOTLOADER_MCUBOOT),y)
 
 BOOTLOADER_BIN = $(TOPDIR)/mcuboot-$(CHIP_SERIES).bin
 
-define CLONE_ESP_HAL_3RDPARTY_REPO_MCUBOOT
-	$(call CLONE, $(ESP_HAL_3RDPARTY_URL),$(HALDIR))
-endef
+# Download MCUboot tarball
+$(MCUBOOT_TARBALL):
+	$(call DOWNLOAD,$(MCUBOOT_URL_BASE),$(MCUBOOT_TARBALL))
 
-$(MCUBOOT_SRCDIR): $(BOOTLOADER_SRCDIR)
-	$(Q) echo "Cloning MCUboot"
-	$(Q) git clone --quiet $(MCUBOOT_URL) $(MCUBOOT_SRCDIR)
-	$(Q) git -C "$(MCUBOOT_SRCDIR)" checkout --quiet $(MCUBOOT_VERSION)
-	$(Q) git -C "$(MCUBOOT_SRCDIR)" submodule --quiet update --init --recursive ext/mbedtls
+# Download mbedtls for MCUboot
+$(MCUBOOT_MBEDTLS_TARBALL):
+	$(call DOWNLOAD,$(MCUBOOT_MBEDTLS_URL_BASE),$(MCUBOOT_MBEDTLS_TARBALL))
 
-$(HALDIR):
-	$(Q) echo "Cloning Espressif HAL for 3rd Party Platforms (MCUBoot build)"
-	$(Q) $(call CLONE_ESP_HAL_3RDPARTY_REPO_MCUBOOT)
-	$(Q) echo "Espressif HAL for 3rd Party Platforms (MCUBoot build): ${ESP_HAL_3RDPARTY_VERSION_FOR_MCUBOOT}"
-	$(Q) git -C $(HALDIR) checkout --quiet $(ESP_HAL_3RDPARTY_VERSION_FOR_MCUBOOT)
+# Unpack MCUboot and mbedtls submodule
+$(MCUBOOT_SRCDIR): $(BOOTLOADER_SRCDIR) $(MCUBOOT_TARBALL) $(MCUBOOT_MBEDTLS_TARBALL)
+	$(Q) echo "Unpacking: MCUboot $(MCUBOOT_VERSION)"
+	$(Q) tar xzf $(MCUBOOT_TARBALL) -C $(BOOTLOADER_SRCDIR)
+	$(Q) mv $(BOOTLOADER_SRCDIR)/$(MCUBOOT_UNPACKNAME) $(MCUBOOT_SRCDIR)
+	$(Q) echo "Unpacking: mbedtls for MCUboot"
+	$(Q) mkdir -p $(MCUBOOT_SRCDIR)/ext/mbedtls
+	$(Q) tar xzf $(MCUBOOT_MBEDTLS_TARBALL) --strip-components=1 -C $(MCUBOOT_SRCDIR)/ext/mbedtls
+	$(Q) touch $(MCUBOOT_SRCDIR)
+
+# Download HAL tarball for MCUboot
+$(ESP_HAL_MCUBOOT_TARBALL):
+	$(call DOWNLOAD,$(ESP_HAL_MCUBOOT_URL_BASE),$(ESP_HAL_MCUBOOT_TARBALL))
+
+# Unpack HAL for MCUboot
+$(HALDIR): $(ESP_HAL_MCUBOOT_TARBALL)
+	$(Q) echo "Unpacking: ESP HAL 3rdparty for MCUboot $(ESP_HAL_3RDPARTY_VERSION_FOR_MCUBOOT)"
+	$(Q) tar xzf $(ESP_HAL_MCUBOOT_TARBALL)
+	$(Q) mv $(ESP_HAL_MCUBOOT_UNPACKNAME) $(HALDIR)
+	$(Q) touch $(HALDIR)
 
 $(BOOTLOADER_BIN): $(HALDIR) $(MCUBOOT_SRCDIR) $(BOOTLOADER_CONFIG)
 	$(Q) echo "Building MCUboot"
@@ -151,5 +176,8 @@ clean_bootloader:
 	$(call DELDIR,$(HALDIR))
 	$(call DELDIR,$(BOOTLOADER_SRCDIR))
 	$(call DELFILE,$(BOOTLOADER_BIN))
+	$(call DELFILE,$(MCUBOOT_TARBALL))
+	$(call DELFILE,$(MCUBOOT_MBEDTLS_TARBALL))
+	$(call DELFILE,$(ESP_HAL_MCUBOOT_TARBALL))
 endif
 endif

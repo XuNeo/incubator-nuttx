@@ -206,59 +206,98 @@ endif
 # Fetch source files and add them to build
 
 ESP_HAL_3RDPARTY_REPO   = esp-hal-3rdparty
+
 ifndef ESP_HAL_3RDPARTY_VERSION
 	ESP_HAL_3RDPARTY_VERSION = bb255ca422f4b4d60c9f4f74dbdf51316dc2b669
 endif
 
-ifndef ESP_HAL_3RDPARTY_URL
-	ESP_HAL_3RDPARTY_URL = https://github.com/espressif/esp-hal-3rdparty.git
-endif
+# Tarball download configuration (following opensbi pattern)
+ESP_HAL_3RDPARTY_TARBALL = $(ESP_HAL_3RDPARTY_VERSION).tar.gz
+ESP_HAL_3RDPARTY_UNPACKNAME = $(ESP_HAL_3RDPARTY_REPO)-$(ESP_HAL_3RDPARTY_VERSION)
+ESP_HAL_3RDPARTY_URL_BASE = https://github.com/espressif/esp-hal-3rdparty/archive
 
-ifndef DISABLE_GIT_DEPTH
-ifndef GIT_DEPTH
-	GIT_DEPTH=1
-endif
-	GIT_DEPTH_PARAMETER = --depth=$(GIT_DEPTH)
-endif
+# mbedtls submodule (required for basic functionality)
+MBEDTLS_VERSION = 98ae8db06b8acc1dc1c6b1f78c2719cb776f4147
+MBEDTLS_TARBALL = $(MBEDTLS_VERSION).tar.gz
+MBEDTLS_UNPACKNAME = mbedtls-$(MBEDTLS_VERSION)
+MBEDTLS_URL_BASE = https://github.com/espressif/mbedtls/archive
 
-# When set USE_NXTMPDIR_ESP_REPO_DIRECTLY=y, will directly use esp-hal-3rdparty
-# under nxtmpdir without CHECK_COMMITSHA, reset, checkout and update.
-
-USE_NXTMPDIR_ESP_REPO_DIRECTLY ?= n
-
-ifeq ($(STORAGETMP),y)
-ifeq ($(USE_NXTMPDIR_ESP_REPO_DIRECTLY),y)
-define CLONE_ESP_HAL_3RDPARTY_REPO
-	$(call COPYDIR, $(NXTMPDIR)/$(ESP_HAL_3RDPARTY_REPO),chip/$(ESP_HAL_3RDPARTY_REPO))
-endef
-else
-define CLONE_ESP_HAL_3RDPARTY_REPO
-	$(call CHECK_COMMITSHA, $(NXTMPDIR)/$(ESP_HAL_3RDPARTY_REPO),$(ESP_HAL_3RDPARTY_VERSION))
-	$(call CLONE, $(ESP_HAL_3RDPARTY_URL),chip/$(ESP_HAL_3RDPARTY_REPO),$(NXTMPDIR)/$(ESP_HAL_3RDPARTY_REPO))
-endef
-endif
-else
-define CLONE_ESP_HAL_3RDPARTY_REPO
-	$(call CLONE, $(ESP_HAL_3RDPARTY_URL),chip/$(ESP_HAL_3RDPARTY_REPO))
-endef
-endif
-
-chip/$(ESP_HAL_3RDPARTY_REPO):
-	$(Q) echo "Cloning Espressif HAL for 3rd Party Platforms"
-	$(Q) $(call CLONE_ESP_HAL_3RDPARTY_REPO)
-ifneq ($(USE_NXTMPDIR_ESP_REPO_DIRECTLY),y)
-	$(Q) echo "Espressif HAL for 3rd Party Platforms: ${ESP_HAL_3RDPARTY_VERSION}"
-	$(Q) git -C chip/$(ESP_HAL_3RDPARTY_REPO) checkout --quiet $(ESP_HAL_3RDPARTY_VERSION)
-	$(Q) git -C chip/$(ESP_HAL_3RDPARTY_REPO) submodule --quiet update --init $(GIT_DEPTH_PARAMETER) components/mbedtls/mbedtls
-endif
+# WIRELESS submodules (required when CONFIG_ESP_WIRELESS=y)
 ifeq ($(CONFIG_ESP_WIRELESS),y)
-ifneq ($(USE_NXTMPDIR_ESP_REPO_DIRECTLY),y)
-	$(Q) echo "Espressif HAL for 3rd Party Platforms: initializing submodules..."
-	$(Q) git -C chip/$(ESP_HAL_3RDPARTY_REPO) submodule --quiet update --init $(GIT_DEPTH_PARAMETER) components/esp_phy/lib components/esp_wifi/lib components/bt/controller/lib_esp32c3_family components/esp_coex/lib
-	$(Q) git -C chip/$(ESP_HAL_3RDPARTY_REPO)/components/mbedtls/mbedtls reset --quiet --hard
+ESP_PHY_VERSION = 2fb71262baf38dc83591b4191731a0880bfdd3a5
+ESP_PHY_TARBALL = $(ESP_PHY_VERSION).tar.gz
+ESP_PHY_URL_BASE = https://github.com/espressif/esp-phy-lib/archive
+
+ESP_WIFI_VERSION = 7587592417ecdb5163a104aebaedee0a87794608
+ESP_WIFI_TARBALL = $(ESP_WIFI_VERSION).tar.gz
+ESP_WIFI_URL_BASE = https://github.com/espressif/esp32-wifi-lib/archive
+
+ESP_BT_VERSION = 72599d583c232ea78d6461b5b502426c6e5a1ec9
+ESP_BT_TARBALL = $(ESP_BT_VERSION).tar.gz
+ESP_BT_URL_BASE = https://github.com/espressif/esp32c3-bt-lib/archive
+
+ESP_COEX_VERSION = cb6667841f63457246d56a9170f3409917e9d5a8
+ESP_COEX_TARBALL = $(ESP_COEX_VERSION).tar.gz
+ESP_COEX_URL_BASE = https://github.com/espressif/esp-coex-lib/archive
 endif
-	$(Q) echo "Applying patches..."
-	$(Q) cd chip/$(ESP_HAL_3RDPARTY_REPO)/components/mbedtls/mbedtls && git apply ../../../nuttx/patches/components/mbedtls/mbedtls/*.patch
+
+# Download tarballs using standard DOWNLOAD macro
+$(ESP_HAL_3RDPARTY_TARBALL):
+	$(call DOWNLOAD,$(ESP_HAL_3RDPARTY_URL_BASE),$(ESP_HAL_3RDPARTY_TARBALL))
+
+$(MBEDTLS_TARBALL):
+	$(call DOWNLOAD,$(MBEDTLS_URL_BASE),$(MBEDTLS_TARBALL))
+
+ifeq ($(CONFIG_ESP_WIRELESS),y)
+$(ESP_PHY_TARBALL):
+	$(call DOWNLOAD,$(ESP_PHY_URL_BASE),$(ESP_PHY_TARBALL))
+
+$(ESP_WIFI_TARBALL):
+	$(call DOWNLOAD,$(ESP_WIFI_URL_BASE),$(ESP_WIFI_TARBALL))
+
+$(ESP_BT_TARBALL):
+	$(call DOWNLOAD,$(ESP_BT_URL_BASE),$(ESP_BT_TARBALL))
+
+$(ESP_COEX_TARBALL):
+	$(call DOWNLOAD,$(ESP_COEX_URL_BASE),$(ESP_COEX_TARBALL))
+endif
+
+# Unpack and prepare HAL with mbedtls submodule
+ifeq ($(CONFIG_ESP_WIRELESS),y)
+.esp_hal_3rdparty_unpack: $(ESP_HAL_3RDPARTY_TARBALL) $(MBEDTLS_TARBALL) $(ESP_PHY_TARBALL) $(ESP_WIFI_TARBALL) $(ESP_BT_TARBALL) $(ESP_COEX_TARBALL)
+else
+.esp_hal_3rdparty_unpack: $(ESP_HAL_3RDPARTY_TARBALL) $(MBEDTLS_TARBALL)
+endif
+	$(Q) echo "Unpacking: ESP HAL 3rdparty $(ESP_HAL_3RDPARTY_VERSION)"
+	$(Q) tar xzf $(ESP_HAL_3RDPARTY_TARBALL)
+	$(Q) mv $(ESP_HAL_3RDPARTY_UNPACKNAME) chip/$(ESP_HAL_3RDPARTY_REPO)
+	$(Q) echo "Unpacking: mbedtls $(MBEDTLS_VERSION)"
+	$(Q) mkdir -p chip/$(ESP_HAL_3RDPARTY_REPO)/components/mbedtls/mbedtls
+	$(Q) tar xzf $(MBEDTLS_TARBALL) --strip-components=1 -C chip/$(ESP_HAL_3RDPARTY_REPO)/components/mbedtls/mbedtls
+ifeq ($(CONFIG_ESP_WIRELESS),y)
+	$(Q) echo "Unpacking: esp-phy-lib $(ESP_PHY_VERSION)"
+	$(Q) mkdir -p chip/$(ESP_HAL_3RDPARTY_REPO)/components/esp_phy/lib
+	$(Q) tar xzf $(ESP_PHY_TARBALL) --strip-components=1 -C chip/$(ESP_HAL_3RDPARTY_REPO)/components/esp_phy/lib
+	$(Q) echo "Unpacking: esp32-wifi-lib $(ESP_WIFI_VERSION)"
+	$(Q) mkdir -p chip/$(ESP_HAL_3RDPARTY_REPO)/components/esp_wifi/lib
+	$(Q) tar xzf $(ESP_WIFI_TARBALL) --strip-components=1 -C chip/$(ESP_HAL_3RDPARTY_REPO)/components/esp_wifi/lib
+	$(Q) echo "Unpacking: esp32c3-bt-lib $(ESP_BT_VERSION)"
+	$(Q) mkdir -p chip/$(ESP_HAL_3RDPARTY_REPO)/components/bt/controller/lib_esp32c3_family
+	$(Q) tar xzf $(ESP_BT_TARBALL) --strip-components=1 -C chip/$(ESP_HAL_3RDPARTY_REPO)/components/bt/controller/lib_esp32c3_family
+	$(Q) echo "Unpacking: esp-coex-lib $(ESP_COEX_VERSION)"
+	$(Q) mkdir -p chip/$(ESP_HAL_3RDPARTY_REPO)/components/esp_coex/lib
+	$(Q) tar xzf $(ESP_COEX_TARBALL) --strip-components=1 -C chip/$(ESP_HAL_3RDPARTY_REPO)/components/esp_coex/lib
+	$(Q) echo "Applying mbedTLS patches..."
+	$(Q) cd chip/$(ESP_HAL_3RDPARTY_REPO)/components/mbedtls/mbedtls && \
+		for patch in ../../../nuttx/patches/components/mbedtls/mbedtls/*.patch; do \
+			patch -p1 -s < $$patch; \
+		done
+endif
+	$(Q) touch .esp_hal_3rdparty_unpack
+
+# Only download if not a git repository (developer mode)
+ifeq ($(wildcard chip/$(ESP_HAL_3RDPARTY_REPO)/.git),)
+context:: .esp_hal_3rdparty_unpack
 endif
 
 include common$(DELIM)espressif$(DELIM)Bootloader.mk
@@ -277,6 +316,7 @@ ifeq ($(CONFIG_ESP_WIRELESS),y)
 	include common$(DELIM)espressif$(DELIM)Wireless.mk
 endif
 
+# Copy required header files
 context:: chip/$(ESP_HAL_3RDPARTY_REPO)
 	$(call COPYFILE,chip/$(ESP_HAL_3RDPARTY_REPO)/components/soc/$(CHIP_SERIES)/include/soc/gpio_sig_map.h,../include/chip/)
 	$(call COPYFILE,chip/$(ESP_HAL_3RDPARTY_REPO)/nuttx/$(CHIP_SERIES)/include/irq.h,../include/chip/)
@@ -285,7 +325,18 @@ distclean::
 	$(call DELFILE,../include/chip/gpio_sig_map.h)
 	$(call DELFILE,../include/chip/irq.h)
 	$(call DELFILE,../../../vefuse.bin)
+ifeq ($(wildcard chip/$(ESP_HAL_3RDPARTY_REPO)/.git),)
+	$(call DELFILE,.esp_hal_3rdparty_unpack)
+	$(call DELFILE,$(ESP_HAL_3RDPARTY_TARBALL))
+	$(call DELFILE,$(MBEDTLS_TARBALL))
+ifeq ($(CONFIG_ESP_WIRELESS),y)
+	$(call DELFILE,$(ESP_PHY_TARBALL))
+	$(call DELFILE,$(ESP_WIFI_TARBALL))
+	$(call DELFILE,$(ESP_BT_TARBALL))
+	$(call DELFILE,$(ESP_COEX_TARBALL))
+endif
 	$(call DELDIR,chip/$(ESP_HAL_3RDPARTY_REPO))
+endif
 ifeq ($(CONFIG_ESPRESSIF_USE_LP_CORE),y)
 	$(call DELDIR,chip/ulp)
 endif

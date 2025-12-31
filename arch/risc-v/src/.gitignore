@@ -1,3 +1,5 @@
 /locked.r
 /board
 /chip
+*.tar.gz
+/.*
