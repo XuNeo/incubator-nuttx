@@ -1,0 +1,118 @@
+#
+# For a description of the syntax of this configuration file,
+# see the file kconfig-language.txt in the NuttX tools repository.
+#
+
+if ARCH_CHIP_T113
+
+comment "T113-S3 Configuration Options"
+
+choice
+	prompt "Allwinner T113 Chip Selection"
+	default ARCH_CHIP_T113S3
+
+config ARCH_CHIP_T113S3
+	bool "T113-S3"
+	---help---
+		Allwinner T113-S3 (also known as R528). ARM Cortex-A7,
+		GIC-400 (GICv2), DDR3, SPI-NAND boot.
+
+endchoice # Allwinner T113 Chip Selection
+
+menu "Allwinner T113 Peripheral Support"
+
+config T113_UART0
+	bool "UART 0"
+	default n
+	select UART0_SERIALDRIVER
+	select ARCH_HAVE_SERIAL_TERMIOS
+
+config T113_UART1
+	bool "UART 1"
+	default n
+	select UART1_SERIALDRIVER
+	select ARCH_HAVE_SERIAL_TERMIOS
+
+config T113_UART2
+	bool "UART 2"
+	default n
+	select UART2_SERIALDRIVER
+	select ARCH_HAVE_SERIAL_TERMIOS
+
+config T113_UART3
+	bool "UART 3"
+	default n
+	select UART3_SERIALDRIVER
+	select ARCH_HAVE_SERIAL_TERMIOS
+
+config T113_DMA
+	bool "DMA Controller"
+	default n
+	---help---
+		Enable T113 DMAC driver (16 channels).
+		Required by T113_SPI_DMA.
+
+config T113_SPI0
+	bool "SPI 0"
+	default n
+	select SPI
+	select ARCH_HAVE_SPI_CSNCONTROL
+
+config T113_SPI1
+	bool "SPI 1"
+	default n
+	select SPI
+	select ARCH_HAVE_SPI_CSNCONTROL
+
+config T113_SPI0_DMA
+	bool "SPI 0 DMA support"
+	default y
+	depends on T113_SPI0 && T113_DMA
+
+config T113_SPI1_DMA
+	bool "SPI 1 DMA support"
+	default y
+	depends on T113_SPI1 && T113_DMA
+
+config T113_TWI0
+	bool "I2C 0 (TWI0)"
+	default n
+	select I2C
+
+config T113_TWI1
+	bool "I2C 1 (TWI1)"
+	default n
+	select I2C
+
+config T113_TWI2
+	bool "I2C 2 (TWI2)"
+	default n
+	select I2C
+
+config T113_TWI3
+	bool "I2C 3 (TWI3)"
+	default n
+	select I2C
+
+endmenu # Allwinner T113 Peripheral Support
+
+config T113_DDR_MAPSIZE
+	int "Installed DDR size (bytes)"
+	default 134217728
+	---help---
+		Physical DDR size installed on board.
+		128 MB = 134217728
+		256 MB = 268435456
+
+config T113_BOOT0
+	bool "Include boot0 (DDR init + BROM header) for standalone NAND boot"
+	default n
+	---help---
+		Enable to produce a self-bootable binary for NAND/SPI-NOR.
+		boot0 code is linked at the start of .text and handles clock
+		and DDR initialization before jumping to NuttX __start.
+		Requires -fno-lto -O3 -fno-stack-protector for t113_load.c.
+		Disable when using xfel to debug (DDR pre-initialized by
+		"xfel ddr t113-s3").
+
+endif # ARCH_CHIP_T113
