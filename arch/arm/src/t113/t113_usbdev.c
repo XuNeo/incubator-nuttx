@@ -1491,6 +1491,23 @@ static int t113_usbdev_interrupt(int irq, void *context, void *arg)
   txintr  = musb_getreg16(MUSB_INTRTX);
   rxintr  = musb_getreg16(MUSB_INTRRX);
 
+  /* Clear interrupt status (write-1-to-clear) */
+
+  if (usbintr)
+    {
+      musb_putreg8(usbintr, MUSB_INTRUSB);
+    }
+
+  if (txintr)
+    {
+      musb_putreg16(txintr, MUSB_INTRTX);
+    }
+
+  if (rxintr)
+    {
+      musb_putreg16(rxintr, MUSB_INTRRX);
+    }
+
   /* Filter out disabled interrupts */
 
   usbintr &= musb_getreg8(MUSB_INTRUSBE);
@@ -1732,7 +1749,7 @@ static void t113_musb_init(struct t113_usbdev_s *priv)
   /* Enable HS negotiation */
 
   musb_clrbits8(MUSB_POWER, MUSB_POWER_SOFTCONN);
-  up_mdelay(50);
+  up_mdelay(500);
   musb_setbits8(MUSB_POWER, MUSB_POWER_HSENAB);
 
   /* Enable USB bus interrupts: suspend, resume, reset */
