@@ -20,11 +20,76 @@
  *
  ****************************************************************************/
 
+/****************************************************************************
+ * Included Files
+ ****************************************************************************/
+
 #include <nuttx/config.h>
-#include <nuttx/timers/arch_alarm.h>
-#include "arm_timer.h"
+#include <stdint.h>
+#include <nuttx/arch.h>
+#include <arch/irq.h>
+
+/****************************************************************************
+ * Pre-processor Definitions
+ ****************************************************************************/
+
+#define GIC_IRQ_SEC_PHY_TIMER 29
+
+/****************************************************************************
+ * Private Data
+ ****************************************************************************/
+
+static uint32_t g_timer_reload;
+
+/****************************************************************************
+ * Private Functions
+ ****************************************************************************/
+
+static inline uint32_t read_cntfrq(void)
+{
+  uint32_t val;
+  __asm__ volatile("mrc p15, 0, %0, c14, c0, 0" : "=r"(val));
+  return val;
+}
+
+static inline void write_cntp_tval(uint32_t val)
+{
+  __asm__ volatile("mcr p15, 0, %0, c14, c2, 0" :: "r"(val));
+  __asm__ volatile("isb");
+}
+
+static inline void write_cntp_ctl(uint32_t val)
+{
+  __asm__ volatile("mcr p15, 0, %0, c14, c2, 1" :: "r"(val));
+  __asm__ volatile("isb");
+}
+
+static int t113_timerisr(int irq, void *context, void *arg)
+{
+  write_cntp_ctl(0);
+  write_cntp_tval(g_timer_reload);
+  write_cntp_ctl(1);
+  nxsched_process_timer();
+  return 0;
+}
+
+/****************************************************************************
+ * Public Functions
+ ****************************************************************************/
 
 void up_timer_initialize(void)
 {
-  up_alarm_set_lowerhalf(arm_timer_initialize(0));
+  uint32_t cntfrq = read_cntfrq();
+  if (cntfrq == 0)
+    {
+      cntfrq = 24000000;
+      __asm__ volatile("mcr p15, 0, %0, c14, c0, 0" :: "r"(cntfrq));
+    }
+
+  g_timer_reload = cntfrq / CONFIG_USEC_PER_TICK;
+
+  irq_attach(GIC_IRQ_SEC_PHY_TIMER, t113_timerisr, NULL);
+  write_cntp_tval(g_timer_reload);
+  write_cntp_ctl(1);
+  up_enable_irq(GIC_IRQ_SEC_PHY_TIMER);
 }

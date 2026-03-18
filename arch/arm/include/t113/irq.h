@@ -24,4 +24,8 @@
 #define T113_IRQ_UART2  36
 #define T113_IRQ_UART3  37
 
+/* USB interrupt numbers */
+
+#define T113_IRQ_USB0   61
+
 #endif /* __ARCH_ARM_INCLUDE_T113_IRQ_H */

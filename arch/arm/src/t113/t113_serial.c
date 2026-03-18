@@ -917,7 +917,7 @@ static int up_setup(struct uart_dev_s *dev)
   /* Set trigger */
 
   up_serialout(priv, T113_UART_FCR_OFFSET,
-              (UART_FCR_FIFOE | UART_FCR_RT_HALF));
+              (UART_FCR_FIFOE | UART_FCR_RT_ONE));
 
   /* Set up the IER */
 
@@ -978,7 +978,7 @@ static int up_setup(struct uart_dev_s *dev)
   /* Configure the FIFOs */
 
   up_serialout(priv, T113_UART_FCR_OFFSET,
-               (UART_FCR_RT_HALF | UART_FCR_XFIFOR | UART_FCR_RFIFOR |
+               (UART_FCR_RT_ONE | UART_FCR_XFIFOR | UART_FCR_RFIFOR |
                 UART_FCR_FIFOE));
 
   /* Enable Auto-Flow Control in the Modem Control Register */
@@ -1026,8 +1026,6 @@ static int up_attach(struct uart_dev_s *dev)
 {
   struct up_dev_s *priv = (struct up_dev_s *)dev->priv;
   int ret;
-
-  /* Attach and enable the IRQ */
 
   ret = irq_attach(priv->irq, uart_interrupt, dev);
   if (ret == OK)

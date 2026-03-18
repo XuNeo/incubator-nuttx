@@ -97,6 +97,7 @@ SECTIONS
     .data :
     {
         _sdata = ABSOLUTE(.);
+        _eronly = ABSOLUTE(.);
         *(.data .data.*)
         *(.gnu.linkonce.d.*)
         CONSTRUCTORS

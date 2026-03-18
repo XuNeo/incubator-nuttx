@@ -58,60 +58,36 @@ int t113_bringup(void)
 #if defined(CONFIG_T113_SPI0) && defined(CONFIG_MTD_MX35)
   FAR struct spi_dev_s *spi;
   FAR struct mtd_dev_s *mtd;
+#if defined(CONFIG_FS_LITTLEFS) && defined(CONFIG_MTD_PARTITION)
+  FAR struct mtd_dev_s *part;
+  struct mtd_geometry_s geo;
+  int pages_per_erase;
+  int start_page;
+  int npart_pages;
+#endif
 
   spi = t113_spibus_initialize(0);
-  if (spi == NULL)
+  if (spi != NULL)
     {
-      syslog(LOG_ERR, "t113_bringup: SPI0 init failed\n");
-    }
-  else
-    {
-      uint8_t tx[4] = { 0x9f, 0x00, 0x00, 0x00 };
-      uint8_t rx[4] = { 0 };
-      SPI_LOCK(spi, true);
-      SPI_SETFREQUENCY(spi, 1000000);
-      SPI_SETMODE(spi, SPIDEV_MODE0);
-      SPI_SETBITS(spi, 8);
-      SPI_SELECT(spi, SPIDEV_FLASH(0), true);
-      SPI_EXCHANGE(spi, tx, rx, 4);
-      SPI_SELECT(spi, SPIDEV_FLASH(0), false);
-      SPI_LOCK(spi, false);
-      printf("SPI NAND ID: %02x %02x %02x %02x\n",
-             rx[0], rx[1], rx[2], rx[3]);
       mtd = mx35_initialize(spi);
-      if (mtd == NULL)
-        {
-          syslog(LOG_ERR, "t113_bringup: MX35 MTD init failed\n");
-          printf("ERROR: MX35 init failed - check SPI wiring\n");
-        }
-      else
+      if (mtd != NULL)
         {
           ret = register_mtddriver("/dev/mtd0", mtd, 0755, NULL);
           if (ret < 0)
             {
               syslog(LOG_ERR, "register_mtddriver failed: %d\n", ret);
             }
-          else
-            {
-              syslog(LOG_INFO, "MX35 SPI NAND registered at /dev/mtd0\n");
-            }
 
-#ifdef CONFIG_FS_LITTLEFS
-          ret = nx_mount("/dev/mtd0", "/mnt", "littlefs", 0, NULL);
-          if (ret < 0)
+#if defined(CONFIG_FS_LITTLEFS) && defined(CONFIG_MTD_PARTITION)
+          mtd->ioctl(mtd, MTDIOC_GEOMETRY, (unsigned long)&geo);
+
+          pages_per_erase = geo.erasesize / geo.blocksize;
+          start_page = (geo.neraseblocks - 4) * pages_per_erase;
+          npart_pages = 4 * pages_per_erase;
+          part = mtd_partition(mtd, start_page, npart_pages);
+          if (part != NULL)
             {
-              syslog(LOG_WARNING,
-                     "LittleFS mount failed (%d), trying format\n", ret);
-              ret = nx_mount("/dev/mtd0", "/mnt", "littlefs", 0,
-                             "forceformat");
-              if (ret == 0)
-                {
-                  syslog(LOG_INFO, "LittleFS formatted and mounted at /mnt\n");
-                }
-            }
-          else
-            {
-              syslog(LOG_INFO, "LittleFS mounted at /mnt\n");
+              register_mtddriver("/dev/mtd1", part, 0755, NULL);
             }
 #endif
         }
@@ -130,7 +106,6 @@ int t113_bringup(void)
     {
 #ifdef CONFIG_I2C_DRIVER
       i2c_register(i2c, 0);
-      syslog(LOG_INFO, "TWI0 registered at /dev/i2c0\n");
 #endif
     }
 #endif

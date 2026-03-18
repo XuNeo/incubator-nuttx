@@ -134,6 +134,11 @@ static void spi_select(FAR struct spi_dev_s *dev, uint32_t devid,
     {
       tcr |= SPI_TCR_SS_LEVEL;
     }
+  else
+    {
+      spi_putreg(priv, SPI_FCR_REG,
+                 SPI_FCR_TX_FIFO_RST | SPI_FCR_RF_RST);
+    }
 
   spi_putreg(priv, SPI_TCR_REG, tcr);
 }
@@ -216,6 +221,9 @@ static void spi_reset(struct t113_spidev_s *priv)
   reg = spi_getreg(priv, SPI_FCR_REG);
   reg |= SPI_FCR_TX_FIFO_RST | SPI_FCR_RF_RST;
   spi_putreg(priv, SPI_FCR_REG, reg);
+
+  spi_putreg(priv, SPI_IER_REG, 0);
+  spi_putreg(priv, SPI_ISR_REG, 0xffffffff);
 }
 
 static void spi_clock_enable(struct t113_spidev_s *priv)
@@ -374,9 +382,29 @@ static void spi_exchange_pio(FAR struct t113_spidev_s *priv,
       spi_putreg(priv, SPI_TCR_REG,
                  spi_getreg(priv, SPI_TCR_REG) | SPI_TCR_XCH);
 
-      while (spi_getreg(priv, SPI_TCR_REG) & SPI_TCR_XCH);
+      {
+        int timeout = 1000000;
+        while ((spi_getreg(priv, SPI_TCR_REG) & SPI_TCR_XCH) &&
+               --timeout > 0);
+        if (timeout <= 0)
+          {
+            spierr("SPI XCH timeout pos=%lu n=%lu\n",
+                   (unsigned long)pos, (unsigned long)n);
+            return;
+          }
+      }
 
-      while ((spi_getreg(priv, SPI_FSR_REG) & 0xff) < n);
+      {
+        int timeout = 1000000;
+        while (((spi_getreg(priv, SPI_FSR_REG) & 0xff) < n) &&
+               --timeout > 0);
+        if (timeout <= 0)
+          {
+            spierr("SPI RX timeout pos=%lu n=%lu\n",
+                   (unsigned long)pos, (unsigned long)n);
+            return;
+          }
+      }
 
       for (i = 0; i < n; i++)
         {

@@ -21,26 +21,74 @@
  ****************************************************************************/
 
 #include <nuttx/config.h>
+#include <assert.h>
 #include <nuttx/arch.h>
+#include <nuttx/irq.h>
+
 #include "arm_internal.h"
+#include "sctlr.h"
 #include "gic.h"
+
+extern uint8_t _vector_start[];
+extern uint8_t _vector_end[];
+
+/****************************************************************************
+ * Pre-processor Definitions
+ ****************************************************************************/
+
+#define T113_C0_RST_CTRL    0x09010000
+#define T113_USB0_BASE      0x04101000
+#define T113_USB0_INTUSBE   0x06
+#define T113_USB0_INTRTXE   0x08
+#define T113_USB0_INTRRXE   0x0a
+#define T113_IRQ_USB0       61
+
+/****************************************************************************
+ * Private Functions
+ ****************************************************************************/
+
+/* xfel FEL mode uses USB0 — disable the controller's interrupt sources
+ * so no new IRQs fire after GIC clear.  boot0 path resets USB so this
+ * is only needed for the xfel load-to-DDR workflow.
+ */
+
+static void t113_usb0_quiesce(void)
+{
+  putreg8(0, T113_USB0_BASE + T113_USB0_INTUSBE);
+  putreg8(0, T113_USB0_BASE + T113_USB0_INTRTXE);
+  putreg16(0, T113_USB0_BASE + T113_USB0_INTRRXE);
+
+  up_disable_irq(T113_IRQ_USB0);
+  putreg32(1 << (T113_IRQ_USB0 % 32), GIC_ICDICPR(T113_IRQ_USB0));
+}
+
+/****************************************************************************
+ * Public Functions
+ ****************************************************************************/
 
 void up_irqinitialize(void)
 {
-  /* Clear any GIC active interrupts left by previous firmware (e.g. xfel).
-   * This must be done before arm_gic_initialize() to prevent spurious IRQs
-   * during NuttX startup.
+  /* Hold Core1 in reset — single-core boot only */
+
+  putreg32(getreg32(T113_C0_RST_CTRL) & ~(1 << 1), T113_C0_RST_CTRL);
+
+  /* Set CNTFRQ to 24 MHz — required because xfel boot path skips boot0
+   * which normally programs this register.
    */
 
-  putreg32(0xffffffff, GIC_ICDCAR(0));
-  putreg32(0xffffffff, GIC_ICDCAR(32));
-  putreg32(0xffffffff, GIC_ICDCAR(64));
-  putreg32(0xffffffff, GIC_ICDCAR(96));
+  __asm__ volatile("mcr p15, 0, %0, c14, c0, 0" :: "r"(24000000));
 
+  arm_gic0_initialize();
   arm_gic_initialize();
 
+  t113_usb0_quiesce();
+
+#ifdef CONFIG_ARCH_LOWVECTORS
+  DEBUGASSERT((((uintptr_t)_vector_start) & ~VBAR_MASK) == 0);
+  cp15_wrvbar((uint32_t)_vector_start);
+#endif
+
 #ifndef CONFIG_SUPPRESS_INTERRUPTS
-  arm_color_intstack();
   up_irq_enable();
 #endif
 }
