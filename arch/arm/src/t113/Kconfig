@@ -13,8 +13,9 @@ choice
 
 config ARCH_CHIP_T113S3
 	bool "T113-S3"
+	select ARCH_HAVE_MULTICPU
 	---help---
-		Allwinner T113-S3 (also known as R528). ARM Cortex-A7,
+		Allwinner T113-S3 (also known as R528). Dual ARM Cortex-A7,
 		GIC-400 (GICv2), DDR3, SPI-NAND boot.
 
 endchoice # Allwinner T113 Chip Selection

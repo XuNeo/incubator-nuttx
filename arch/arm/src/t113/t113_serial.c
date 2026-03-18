@@ -49,8 +49,6 @@
 #include "arm_internal.h"
 #include "chip.h"
 #include "hardware/t113_uart.h"
-
-
 #include "t113_config.h"
 #include "t113_serial.h"
 
@@ -710,7 +708,7 @@ static inline void t113_uart0config(void)
   irqstate_t flags;
   uint32_t reg;
 
-  flags = enter_critical_section();
+  flags = up_irq_save();
 
 #define T113_CCU_UART_BGR_REG  (0x0200190C)
 #define T113_GPIO_PORTF_CFG0   (0x020000F0)
@@ -722,7 +720,7 @@ static inline void t113_uart0config(void)
   reg |=  (BOARD_UART0_PIN_FUNC << (BOARD_UART0_RX_PIN * 4));
   putreg32(reg, T113_GPIO_PORTF_CFG0);
 
-  leave_critical_section(flags);
+  up_irq_restore(flags);
 };
 #endif
 
@@ -733,7 +731,7 @@ static inline void t113_uart1config(void)
 
   /* Step 1: Enable power to UART1 */
 
-  flags   = enter_critical_section();
+  flags   = up_irq_save();
 #warning Missing logic
 
   /* Step 2: Enable clocking to UART1 */
@@ -741,9 +739,7 @@ static inline void t113_uart1config(void)
 
   /* Step 3: Configure I/O pins */
 
-  
-  
-  leave_critical_section(flags);
+  up_irq_restore(flags);
 };
 #endif
 
@@ -754,7 +750,7 @@ static inline void t113_uart2config(void)
 
   /* Step 1: Enable power to UART2 */
 
-  flags   = enter_critical_section();
+  flags   = up_irq_save();
 #warning Missing logic
 
   /* Step 2: Enable clocking on UART2 */
@@ -762,9 +758,7 @@ static inline void t113_uart2config(void)
 
   /* Step 3: Configure I/O pins */
 
-  
-  
-  leave_critical_section(flags);
+  up_irq_restore(flags);
 };
 #endif
 
@@ -775,7 +769,7 @@ static inline void t113_uart3config(void)
 
   /* Step 1: Enable power to UART3 */
 
-  flags   = enter_critical_section();
+  flags   = up_irq_save();
 #warning Missing logic
 
   /* Step 2: Enable clocking to UART3 */
@@ -783,9 +777,7 @@ static inline void t113_uart3config(void)
 
   /* Step 3: Configure I/O pins */
 
-  
-  
-  leave_critical_section(flags);
+  up_irq_restore(flags);
 };
 #endif
 
@@ -796,7 +788,7 @@ static inline void t113_uart4config(void)
 
   /* Step 1: Enable power to UART4 */
 
-  flags   = enter_critical_section();
+  flags   = up_irq_save();
 #warning Missing logic
 
   /* Step 2: Enable clocking to UART4 */
@@ -804,9 +796,7 @@ static inline void t113_uart4config(void)
 
   /* Step 3: Configure I/O pins */
 
-  
-  
-  leave_critical_section(flags);
+  up_irq_restore(flags);
 };
 #endif
 
@@ -817,7 +807,7 @@ static inline void t113_uart5config(void)
 
   /* Step 1: Enable power to UART5 */
 
-  flags   = enter_critical_section();
+  flags   = up_irq_save();
 #warning Missing logic
 
   /* Step 2: Enable clocking to UART5 */
@@ -825,9 +815,7 @@ static inline void t113_uart5config(void)
 
   /* Step 3: Configure I/O pins */
 
-  
-  
-  leave_critical_section(flags);
+  up_irq_restore(flags);
 };
 #endif
 
@@ -838,7 +826,7 @@ static inline void t113_uart6config(void)
 
   /* Step 1: Enable power to UART6 */
 
-  flags   = enter_critical_section();
+  flags   = up_irq_save();
 #warning Missing logic
 
   /* Step 2: Enable clocking to UART6 */
@@ -846,9 +834,7 @@ static inline void t113_uart6config(void)
 
   /* Step 3: Configure I/O pins */
 
-  
-  
-  leave_critical_section(flags);
+  up_irq_restore(flags);
 };
 #endif
 
@@ -859,7 +845,7 @@ static inline void t113_uart7config(void)
 
   /* Step 1: Enable power to UART7 */
 
-  flags   = enter_critical_section();
+  flags   = up_irq_save();
 #warning Missing logic
 
   /* Step 2: Enable clocking to UART7 */
@@ -867,9 +853,7 @@ static inline void t113_uart7config(void)
 
   /* Step 3: Configure I/O pins */
 
-  
-  
-  leave_critical_section(flags);
+  up_irq_restore(flags);
 };
 #endif
 

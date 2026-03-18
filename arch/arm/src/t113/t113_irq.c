@@ -52,6 +52,34 @@ extern uint8_t _vector_end[];
 #define T113_USB0_INTRRXE   0x0a
 #define T113_IRQ_USB0       61
 
+#define INTSTACK_SIZE  (CONFIG_ARCH_INTERRUPTSTACK & ~7)
+#define INTSTACK_ALLOC (CONFIG_SMP_NCPUS * INTSTACK_SIZE)
+
+/****************************************************************************
+ * Public Data
+ ****************************************************************************/
+
+#if defined(CONFIG_SMP) && CONFIG_ARCH_INTERRUPTSTACK > 7
+static uint64_t g_irqstack_alloc[INTSTACK_ALLOC >> 3];
+static uint64_t g_fiqstack_alloc[INTSTACK_ALLOC >> 3];
+
+uintptr_t g_irqstack_top[CONFIG_SMP_NCPUS] =
+{
+  (uintptr_t)g_irqstack_alloc + INTSTACK_SIZE,
+#if CONFIG_SMP_NCPUS > 1
+  (uintptr_t)g_irqstack_alloc + (2 * INTSTACK_SIZE),
+#endif
+};
+
+uintptr_t g_fiqstack_top[CONFIG_SMP_NCPUS] =
+{
+  (uintptr_t)g_fiqstack_alloc + INTSTACK_SIZE,
+#if CONFIG_SMP_NCPUS > 1
+  (uintptr_t)g_fiqstack_alloc + (2 * INTSTACK_SIZE),
+#endif
+};
+#endif
+
 /****************************************************************************
  * Private Functions
  ****************************************************************************/
@@ -92,12 +120,20 @@ static void t113_usb0_quiesce(void)
 
 void up_irqinitialize(void)
 {
-  putreg32(getreg32(T113_C0_RST_CTRL) & ~(1 << 1), T113_C0_RST_CTRL);
+  if (this_cpu() == 0)
+    {
+#ifndef CONFIG_SMP
+      putreg32(getreg32(T113_C0_RST_CTRL) & ~(1 << 1), T113_C0_RST_CTRL);
+#endif
+      arm_gic0_initialize();
+    }
 
-  arm_gic0_initialize();
   arm_gic_initialize();
 
-  t113_usb0_quiesce();
+  if (this_cpu() == 0)
+    {
+      t113_usb0_quiesce();
+    }
 
 #ifdef CONFIG_ARCH_LOWVECTORS
   DEBUGASSERT((((uintptr_t)_vector_start) & ~VBAR_MASK) == 0);
@@ -108,3 +144,10 @@ void up_irqinitialize(void)
   up_irq_enable();
 #endif
 }
+
+#if defined(CONFIG_SMP) && CONFIG_ARCH_INTERRUPTSTACK > 7
+uintptr_t up_get_intstackbase(int cpu)
+{
+  return g_irqstack_top[cpu] - INTSTACK_SIZE;
+}
+#endif

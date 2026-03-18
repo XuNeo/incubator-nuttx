@@ -37,6 +37,10 @@ if(CONFIG_T113_DMA)
   list(APPEND SRCS t113_dma.c)
 endif()
 
+if(CONFIG_SMP)
+  list(APPEND SRCS t113_cpuboot.c)
+endif()
+
 if(CONFIG_T113_SPI0 OR CONFIG_T113_SPI1)
   list(APPEND SRCS t113_spi.c)
 endif()

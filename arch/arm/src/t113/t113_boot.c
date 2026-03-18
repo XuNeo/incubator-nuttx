@@ -35,6 +35,11 @@
 #endif
 
 #include "chip.h"
+
+#ifdef CONFIG_SMP
+void t113_cpu_enable(void);
+void arm_enable_smp(int cpu);
+#endif
 #include "arm.h"
 #include "mmu.h"
 #include "arm_internal.h"
@@ -166,12 +171,20 @@ void arm_boot(void)
 
   arm_fpuconfig();
 
+#ifdef CONFIG_SMP
+  arm_enable_smp(0);
+#endif
+
 #ifdef CONFIG_BOOT_SDRAM_DATA
   arm_data_initialize();
 #endif
 
 #ifdef USE_EARLYSERIALINIT
   arm_earlyserialinit();
+#endif
+
+#ifdef CONFIG_SMP
+  t113_cpu_enable();
 #endif
 
   t113_boardinitialize();

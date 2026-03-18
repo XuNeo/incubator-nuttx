@@ -20,7 +20,39 @@
 
 #include "hardware/t113_memorymap.h"
 
-/* IRQ numbers (from r528_irq.h — T113/R528 same silicon) */
+/****************************************************************************
+ * Assembly Macros
+ ****************************************************************************/
+
+#ifdef __ASSEMBLY__
+
+#if defined(CONFIG_SMP) && CONFIG_ARCH_INTERRUPTSTACK > 7
+  .macro  setirqstack, tmp1, tmp2
+  mrc     p15, 0, \tmp1, c0, c0, 5
+  and     \tmp1, \tmp1, #3
+  ldr     \tmp2, =g_irqstack_top
+  lsls    \tmp1, \tmp1, #2
+  add     \tmp2, \tmp2, \tmp1
+  ldr     sp, [\tmp2, #0]
+  .endm
+
+  .macro  setfiqstack, tmp1, tmp2
+  mrc     p15, 0, \tmp1, c0, c0, 5
+  and     \tmp1, \tmp1, #3
+  ldr     \tmp2, =g_fiqstack_top
+  lsls    \tmp1, \tmp1, #2
+  add     \tmp2, \tmp2, \tmp1
+  ldr     sp, [\tmp2, #0]
+  .endm
+#endif
+
+#endif /* __ASSEMBLY__ */
+
+/****************************************************************************
+ * Pre-processor Definitions
+ ****************************************************************************/
+
+/* IRQ numbers */
 
 #define T113_IRQ_TWI0     41
 #define T113_IRQ_TWI1     42
