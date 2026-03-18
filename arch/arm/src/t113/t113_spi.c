@@ -448,15 +448,25 @@ static void spi_exchange_dma(FAR struct t113_spidev_s *priv,
                               FAR const void *txbuf,
                               FAR void *rxbuf, size_t nwords)
 {
-  static uint32_t s_dummy_tx = 0xffffffff;
-  static uint32_t s_dummy_rx;
+  static uint32_t aligned_data(64) s_dummy_tx = 0xffffffff;
+  static uint32_t aligned_data(64) s_dummy_rx;
   struct t113_dma_config_s rxcfg;
   struct t113_dma_config_s txcfg;
+
+  /* TX DMA: use 32-bit width and burst-8 when transfer is 4-byte
+   * aligned, matching the vendor SPI+DMA configuration.
+   * TODO: BURST_8 causes TX DMA hang due to SPI FIFO DRQ timing.
+   * Using BURST_1 as workaround until root cause is resolved.
+   */
 
   txcfg.src_width  = DMAC_WIDTH_8BIT;
   txcfg.dst_width  = DMAC_WIDTH_8BIT;
   txcfg.src_burst  = DMAC_BURST_1;
   txcfg.dst_burst  = DMAC_BURST_1;
+
+  /* RX DMA: always 8-bit / burst-1 because SPI RX FIFO fills
+   * one byte per SPI clock and the DRQ fires per-byte.
+   */
 
   rxcfg.src_drq    = priv->src_drq;
   rxcfg.dst_drq    = DRQ_DRAM;
@@ -497,6 +507,10 @@ static void spi_exchange_dma(FAR struct t113_spidev_s *priv,
                 priv->base + SPI_TXD_REG,
                 nwords, &txcfg);
 
+  /* TX-only: skip RX DMA to avoid TX DMA timing interference.
+   * Reset RX FIFO to discard incoming data from full-duplex clock.
+   */
+
   if (rxbuf)
     {
       spi_putreg(priv, SPI_FCR_REG,
@@ -506,12 +520,17 @@ static void spi_exchange_dma(FAR struct t113_spidev_s *priv,
   else
     {
       spi_putreg(priv, SPI_FCR_REG,
-                 SPI_FCR_TF_DRQ_EN | SPI_FCR_TX_TRIG(1));
+                 SPI_FCR_TF_DRQ_EN | SPI_FCR_RF_RST |
+                 SPI_FCR_TX_TRIG(1));
     }
 
   spi_putreg(priv, SPI_MBC_REG, nwords);
   spi_putreg(priv, SPI_MTC_REG, nwords);
   spi_putreg(priv, SPI_BCC_REG, nwords);
+
+  /* XCH must be triggered before DMA start so that SPI generates
+   * DRQ signals for the DMA channels to respond to.
+   */
 
   spi_putreg(priv, SPI_TCR_REG,
              spi_getreg(priv, SPI_TCR_REG) | SPI_TCR_XCH);
