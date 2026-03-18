@@ -48,6 +48,7 @@ config T113_UART3
 config T113_DMA
 	bool "DMA Controller"
 	default n
+	select ARCH_DMA
 	---help---
 		Enable T113 DMAC driver (16 channels).
 		Required by T113_SPI_DMA.

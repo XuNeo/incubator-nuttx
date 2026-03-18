@@ -448,10 +448,15 @@ static void spi_exchange_dma(FAR struct t113_spidev_s *priv,
                               FAR const void *txbuf,
                               FAR void *rxbuf, size_t nwords)
 {
+  static uint32_t s_dummy_tx = 0xffffffff;
+  static uint32_t s_dummy_rx;
   struct t113_dma_config_s rxcfg;
   struct t113_dma_config_s txcfg;
-  uint32_t dummy_tx = 0xffffffff;
-  uint32_t dummy_rx;
+
+  txcfg.src_width  = DMAC_WIDTH_8BIT;
+  txcfg.dst_width  = DMAC_WIDTH_8BIT;
+  txcfg.src_burst  = DMAC_BURST_1;
+  txcfg.dst_burst  = DMAC_BURST_1;
 
   rxcfg.src_drq    = priv->src_drq;
   rxcfg.dst_drq    = DRQ_DRAM;
@@ -459,67 +464,76 @@ static void spi_exchange_dma(FAR struct t113_spidev_s *priv,
   rxcfg.dst_width  = DMAC_WIDTH_8BIT;
   rxcfg.src_burst  = DMAC_BURST_1;
   rxcfg.dst_burst  = DMAC_BURST_1;
-  rxcfg.src_linear = false;   /* SPI FIFO = IO */
+  rxcfg.src_linear = false;
   rxcfg.dst_linear = (rxbuf != NULL);
-  rxcfg.wait_cyc   = 0;
 
   txcfg.src_drq    = DRQ_DRAM;
   txcfg.dst_drq    = priv->dst_drq;
-  txcfg.src_width  = DMAC_WIDTH_8BIT;
-  txcfg.dst_width  = DMAC_WIDTH_8BIT;
-  txcfg.src_burst  = DMAC_BURST_1;
-  txcfg.dst_burst  = DMAC_BURST_1;
-  txcfg.src_linear = (txbuf != NULL); /* dummy_tx if no txbuf */
-  txcfg.dst_linear = false;           /* SPI FIFO = IO */
-  txcfg.wait_cyc   = 0;
+  txcfg.src_linear = (txbuf != NULL);
+  txcfg.dst_linear = false;
 
   priv->rxresult = 0;
   priv->txresult = 0;
 
-  /* Flush cache before DMA reads */
-
   if (txbuf)
     {
-      up_flush_dcache((uintptr_t)txbuf, (uintptr_t)txbuf + nwords);
+      up_flush_dcache((uintptr_t)txbuf & ~63ul,
+                      ((uintptr_t)txbuf + nwords + 63ul) & ~63ul);
     }
 
   if (rxbuf)
     {
-      up_invalidate_dcache((uintptr_t)rxbuf, (uintptr_t)rxbuf + nwords);
+      up_flush_dcache((uintptr_t)rxbuf & ~63ul,
+                      ((uintptr_t)rxbuf + nwords + 63ul) & ~63ul);
     }
 
   t113_dmasetup(priv->rxdma,
                 priv->base + SPI_RXD_REG,
-                rxbuf ? (uintptr_t)rxbuf : (uintptr_t)&dummy_rx,
+                rxbuf ? (uintptr_t)rxbuf : (uintptr_t)&s_dummy_rx,
                 nwords, &rxcfg);
 
   t113_dmasetup(priv->txdma,
-                txbuf ? (uintptr_t)txbuf : (uintptr_t)&dummy_tx,
+                txbuf ? (uintptr_t)txbuf : (uintptr_t)&s_dummy_tx,
                 priv->base + SPI_TXD_REG,
                 nwords, &txcfg);
 
-  /* Enable DMA requests in SPI controller */
-
-  spi_putreg(priv, SPI_FCR_REG,
-             SPI_FCR_RF_DRQ_EN | SPI_FCR_TF_DRQ_EN |
-             SPI_FCR_RX_TRIG(1) | SPI_FCR_TX_TRIG(0x20));
+  if (rxbuf)
+    {
+      spi_putreg(priv, SPI_FCR_REG,
+                 SPI_FCR_RF_DRQ_EN | SPI_FCR_TF_DRQ_EN |
+                 SPI_FCR_RX_TRIG(32) | SPI_FCR_TX_TRIG(1));
+    }
+  else
+    {
+      spi_putreg(priv, SPI_FCR_REG,
+                 SPI_FCR_TF_DRQ_EN | SPI_FCR_TX_TRIG(1));
+    }
 
   spi_putreg(priv, SPI_MBC_REG, nwords);
   spi_putreg(priv, SPI_MTC_REG, nwords);
   spi_putreg(priv, SPI_BCC_REG, nwords);
 
-  t113_dmastart(priv->rxdma, spi_rxcallback, priv);
-  t113_dmastart(priv->txdma, spi_txcallback, priv);
-
   spi_putreg(priv, SPI_TCR_REG,
              spi_getreg(priv, SPI_TCR_REG) | SPI_TCR_XCH);
 
-  /* Wait for RX DMA completion (RX done means transfer done) */
+  if (rxbuf)
+    {
+      t113_dmastart(priv->rxdma, spi_rxcallback, priv);
+    }
 
-  nxsem_wait_uninterruptible(&priv->rxsem);
+  t113_dmastart(priv->txdma, spi_txcallback, priv);
+
+  if (rxbuf)
+    {
+      nxsem_wait_uninterruptible(&priv->rxsem);
+    }
+
   nxsem_wait_uninterruptible(&priv->txsem);
 
-  /* Disable DMA requests */
+  if (rxbuf)
+    {
+      up_flush_dcache_all();
+    }
 
   spi_putreg(priv, SPI_FCR_REG, 0);
 }

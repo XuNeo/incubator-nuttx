@@ -140,7 +140,11 @@
 
 /* Descriptor link: end of chain marker */
 
-#define DMAC_DESC_END  0xfffff800
+#define DMAC_DESC_END          0xfffff800
+
+/* Descriptor PARA field: normal wait cycles (8 between packets) */
+
+#define DMAC_PARA_NORMAL_WAIT  (8 << 0)
 
 /* DMAC_EN_REGN bits */
 

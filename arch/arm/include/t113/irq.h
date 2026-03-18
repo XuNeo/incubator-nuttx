@@ -8,8 +8,9 @@
  *
  ****************************************************************************/
 
-#ifndef __ARCH_ARM_INCLUDE_T113_IRQ_H
-#define __ARCH_ARM_INCLUDE_T113_IRQ_H
+/****************************************************************************
+ * Included Files
+ ****************************************************************************/
 
 #include <nuttx/config.h>
 
@@ -27,5 +28,10 @@
 /* USB interrupt numbers */
 
 #define T113_IRQ_USB0   61
+
+/* DMA interrupt numbers */
+
+#define T113_IRQ_DMA0   82
+#define T113_IRQ_DMA1   83
 
 #endif /* __ARCH_ARM_INCLUDE_T113_IRQ_H */

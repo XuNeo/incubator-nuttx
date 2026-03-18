@@ -89,28 +89,24 @@ static mutex_t g_dmalock = NXMUTEX_INITIALIZER;
  * Private Functions
  ****************************************************************************/
 
-static void dma_chan_irq(int irq, uint32_t pend_bit, int chan_base)
+static void dma_chan_irq(int irq, uint32_t pend_bits, int chan_base)
 {
   struct t113_dma_chan_s *chan;
-  uint8_t status;
+  uint32_t bits;
   int n;
 
   for (n = 0; n < 8; n++)
     {
-      chan = &g_dmachan[chan_base + n];
-
-      if ((pend_bit >> (n * 4)) & 0xf)
+      bits = (pend_bits >> (n * 4)) & 0xf;
+      if (bits == 0)
         {
-          status = DMA_STATUS_COMPLETE;
-          if ((pend_bit >> (n * 4)) & 0x1)
-            {
-              status = DMA_STATUS_ERROR;
-            }
+          continue;
+        }
 
-          if (chan->callback != NULL)
-            {
-              chan->callback((DMA_HANDLE)chan, status, chan->arg);
-            }
+      chan = &g_dmachan[chan_base + n];
+      if (chan->callback != NULL)
+        {
+          chan->callback((DMA_HANDLE)chan, DMA_STATUS_COMPLETE, chan->arg);
         }
     }
 }
@@ -227,7 +223,7 @@ int t113_dmasetup(DMA_HANDLE handle,
   chan->desc.src    = (uint32_t)src;
   chan->desc.dst    = (uint32_t)dst;
   chan->desc.len    = (uint32_t)len;
-  chan->desc.param  = cfg->wait_cyc;
+  chan->desc.param  = DMAC_PARA_NORMAL_WAIT;
   chan->desc.link   = DMAC_DESC_END;
 
   return OK;
