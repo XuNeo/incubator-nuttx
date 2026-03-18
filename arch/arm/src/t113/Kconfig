@@ -96,6 +96,14 @@ config T113_TWI3
 	default n
 	select I2C
 
+config T113_USBDEV
+	bool "USB Device Controller (MUSB OTG)"
+	default n
+	select USBDEV
+	---help---
+		Enable T113 MUSB OTG USB device controller driver.
+		Supports CDC-ACM and ADB over USB in device mode.
+
 endmenu # Allwinner T113 Peripheral Support
 
 config T113_DDR_MAPSIZE

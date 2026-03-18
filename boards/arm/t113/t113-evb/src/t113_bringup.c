@@ -45,6 +45,10 @@ extern FAR struct mtd_dev_s *mx35_initialize(FAR struct spi_dev_s *dev);
 #  include "t113_i2c.h"
 #endif
 
+#ifdef CONFIG_T113_USBDEV
+#  include <nuttx/usb/usbdev.h>
+#endif
+
 #include "t113-evb.h"
 
 /****************************************************************************
@@ -108,6 +112,10 @@ int t113_bringup(void)
       i2c_register(i2c, 0);
 #endif
     }
+#endif
+
+#ifdef CONFIG_T113_USBDEV
+  arm_usbinitialize();
 #endif
 
   return ret;

@@ -37,3 +37,7 @@ CHIP_CSRCS += t113_load.c
 CHIP_ASRCS += t113_boot0.S
 t113_load.c_CFLAGS = -fno-lto -O3 -fno-stack-protector
 endif
+
+ifeq ($(CONFIG_T113_USBDEV),y)
+CHIP_CSRCS += t113_usbdev.c
+endif

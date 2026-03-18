@@ -52,4 +52,8 @@ if(CONFIG_T113_TWI0
   list(APPEND SRCS t113_i2c.c)
 endif()
 
+if(CONFIG_T113_USBDEV)
+  list(APPEND SRCS t113_usbdev.c)
+endif()
+
 target_sources(arch PRIVATE ${SRCS})
