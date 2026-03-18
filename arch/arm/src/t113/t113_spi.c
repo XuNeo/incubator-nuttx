@@ -29,6 +29,7 @@
 #include <sys/types.h>
 #include <stdint.h>
 #include <stdbool.h>
+#include <stdlib.h>
 #include <string.h>
 #include <assert.h>
 #include <errno.h>
@@ -452,11 +453,12 @@ static void spi_exchange_dma(FAR struct t113_spidev_s *priv,
   static uint32_t aligned_data(64) s_dummy_rx;
   struct t113_dma_config_s rxcfg;
   struct t113_dma_config_s txcfg;
+  FAR uint8_t *dma_rxbuf = NULL;
+  bool bounce = false;
 
-  /* TX DMA: use 32-bit width and burst-8 when transfer is 4-byte
-   * aligned, matching the vendor SPI+DMA configuration.
-   * TODO: BURST_8 causes TX DMA hang due to SPI FIFO DRQ timing.
-   * Using BURST_1 as workaround until root cause is resolved.
+  /* TX DMA: 8-bit width, burst-1.
+   * BURST_8/WIDTH_32BIT shifts data by one page due to SPI FIFO
+   * timing issue with XCH and DRQ interaction.
    */
 
   txcfg.src_width  = DMAC_WIDTH_8BIT;
@@ -491,15 +493,37 @@ static void spi_exchange_dma(FAR struct t113_spidev_s *priv,
                       ((uintptr_t)txbuf + nwords + 63ul) & ~63ul);
     }
 
-  if (rxbuf)
+  /* Use a cache-line aligned bounce buffer for RX when the caller's
+   * buffer is not 64-byte aligned.  Unaligned invalidate causes stale
+   * data at cache-line boundaries on Cortex-A7.
+   */
+
+  if (rxbuf && ((uintptr_t)rxbuf & 63))
     {
-      up_flush_dcache((uintptr_t)rxbuf & ~63ul,
-                      ((uintptr_t)rxbuf + nwords + 63ul) & ~63ul);
+      dma_rxbuf = memalign(64, nwords);
+      if (dma_rxbuf != NULL)
+        {
+          bounce = true;
+        }
+      else
+        {
+          dma_rxbuf = rxbuf;
+        }
+    }
+  else if (rxbuf)
+    {
+      dma_rxbuf = rxbuf;
+    }
+
+  if (dma_rxbuf)
+    {
+      up_flush_dcache((uintptr_t)dma_rxbuf,
+                      (uintptr_t)dma_rxbuf + nwords);
     }
 
   t113_dmasetup(priv->rxdma,
                 priv->base + SPI_RXD_REG,
-                rxbuf ? (uintptr_t)rxbuf : (uintptr_t)&s_dummy_rx,
+                dma_rxbuf ? (uintptr_t)dma_rxbuf : (uintptr_t)&s_dummy_rx,
                 nwords, &rxcfg);
 
   t113_dmasetup(priv->txdma,
@@ -542,16 +566,35 @@ static void spi_exchange_dma(FAR struct t113_spidev_s *priv,
 
   t113_dmastart(priv->txdma, spi_txcallback, priv);
 
+  nxsem_tickwait_uninterruptible(&priv->txsem, MSEC2TICK(500));
+
   if (rxbuf)
     {
-      nxsem_wait_uninterruptible(&priv->rxsem);
+      nxsem_tickwait_uninterruptible(&priv->rxsem, MSEC2TICK(500));
     }
 
-  nxsem_wait_uninterruptible(&priv->txsem);
-
-  if (rxbuf)
+  if (t113_dmaresidual(priv->txdma) > 0 ||
+      (rxbuf && t113_dmaresidual(priv->rxdma) > 0))
     {
-      up_flush_dcache_all();
+      _err("DMA incomplete tx_left=%zu rx_left=%zu\n",
+             t113_dmaresidual(priv->txdma),
+             rxbuf ? t113_dmaresidual(priv->rxdma) : 0);
+      t113_dmastop(priv->txdma);
+      if (rxbuf)
+        {
+          t113_dmastop(priv->rxdma);
+        }
+    }
+
+  if (dma_rxbuf)
+    {
+      up_invalidate_dcache((uintptr_t)dma_rxbuf,
+                           (uintptr_t)dma_rxbuf + nwords);
+      if (bounce)
+        {
+          memcpy(rxbuf, dma_rxbuf, nwords);
+          free(dma_rxbuf);
+        }
     }
 
   spi_putreg(priv, SPI_FCR_REG, 0);
