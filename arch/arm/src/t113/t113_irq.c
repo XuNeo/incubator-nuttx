@@ -25,7 +25,12 @@
  ****************************************************************************/
 
 #include <nuttx/config.h>
+
+#include <stdint.h>
 #include <assert.h>
+#include <errno.h>
+#include <debug.h>
+
 #include <nuttx/arch.h>
 #include <nuttx/irq.h>
 
@@ -51,10 +56,15 @@ extern uint8_t _vector_end[];
  * Private Functions
  ****************************************************************************/
 
-/* xfel FEL mode uses USB0 — disable the controller's interrupt sources
- * so no new IRQs fire after GIC clear.  boot0 path resets USB so this
- * is only needed for the xfel load-to-DDR workflow.
- */
+/****************************************************************************
+ * Name: t113_usb0_quiesce
+ *
+ * Description:
+ *   Disable USB0 interrupt sources left active by xfel FEL mode.
+ *   The boot0 path resets USB, so this is only needed for the
+ *   xfel load-to-DDR workflow.
+ *
+ ****************************************************************************/
 
 static void t113_usb0_quiesce(void)
 {
@@ -68,6 +78,16 @@ static void t113_usb0_quiesce(void)
 
 /****************************************************************************
  * Public Functions
+ ****************************************************************************/
+
+/****************************************************************************
+ * Name: up_irqinitialize
+ *
+ * Description:
+ *   This function is called by up_initialize() during the bring-up of the
+ *   system.  It is the responsibility of this function to put the interrupt
+ *   subsystem into the working and ready state.
+ *
  ****************************************************************************/
 
 void up_irqinitialize(void)

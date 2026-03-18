@@ -25,9 +25,16 @@
  ****************************************************************************/
 
 #include <nuttx/config.h>
+
 #include <stdint.h>
+#include <time.h>
+#include <assert.h>
+#include <debug.h>
+
 #include <nuttx/arch.h>
+
 #include <arch/irq.h>
+#include <arch/armv7-a/cp15.h>
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -46,49 +53,49 @@ static uint32_t g_timer_reload;
  * Private Functions
  ****************************************************************************/
 
-static inline uint32_t read_cntfrq(void)
-{
-  uint32_t cntfrq;
-  uint32_t freq = T113_CNTFRQ;
-  __asm__ volatile("mrc p15, 0, %0, c14, c0, 0" : "=r"(cntfrq));
-  __asm__ volatile("mcr p15, 0, %0, c14, c0, 0" :: "r"(freq));
-  __asm__ volatile("mrc p15, 0, %0, c14, c0, 0" : "=r"(cntfrq));
-  return cntfrq;
-}
-
-static inline void write_cntp_tval(uint32_t val)
-{
-  __asm__ volatile("mcr p15, 0, %0, c14, c2, 0" :: "r"(val));
-  __asm__ volatile("isb");
-}
-
-static inline void write_cntp_ctl(uint32_t val)
-{
-  __asm__ volatile("mcr p15, 0, %0, c14, c2, 1" :: "r"(val));
-  __asm__ volatile("isb");
-}
+/****************************************************************************
+ * Name: t113_timerisr
+ *
+ * Description:
+ *   The timer ISR will perform a variety of services for various portions
+ *   of the systems.
+ *
+ ****************************************************************************/
 
 static int t113_timerisr(int irq, void *context, void *arg)
 {
-  write_cntp_ctl(0);
-  write_cntp_tval(g_timer_reload);
-  write_cntp_ctl(1);
+  CP15_SET(CNTP_CTL, 0);
+  CP15_SET(CNTP_TVAL, g_timer_reload);
+  CP15_SET(CNTP_CTL, 1);
   nxsched_process_timer();
-  return 0;
+  return OK;
 }
 
 /****************************************************************************
  * Public Functions
  ****************************************************************************/
 
+/****************************************************************************
+ * Function:  up_timer_initialize
+ *
+ * Description:
+ *   This function is called during start-up to initialize
+ *   the timer interrupt.  Uses the ARMv7-A generic timer (CNTP).
+ *
+ ****************************************************************************/
+
 void up_timer_initialize(void)
 {
-  uint32_t cntfrq = read_cntfrq();
+  uint32_t cntfrq;
+
+  CP15_SET(CNTFRQ, T113_CNTFRQ);
+  cntfrq = CP15_GET(CNTFRQ);
 
   g_timer_reload = cntfrq / CONFIG_USEC_PER_TICK;
 
+  up_disable_irq(GIC_IRQ_SEC_PHY_TIMER);
   irq_attach(GIC_IRQ_SEC_PHY_TIMER, t113_timerisr, NULL);
-  write_cntp_tval(g_timer_reload);
-  write_cntp_ctl(1);
+  CP15_SET(CNTP_TVAL, g_timer_reload);
+  CP15_SET(CNTP_CTL, 1);
   up_enable_irq(GIC_IRQ_SEC_PHY_TIMER);
 }
