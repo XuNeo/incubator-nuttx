@@ -1,5 +1,5 @@
 /****************************************************************************
- * arch/arm/src/a1x/t113_config.h
+ * arch/arm/src/t113/t113_config.h
  *
  * SPDX-License-Identifier: Apache-2.0
  *

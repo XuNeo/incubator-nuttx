@@ -3,13 +3,32 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  *
- * Based on vendor/allwinnertech/chips/r528/r528_boot.c
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.  The
+ * ASF licenses this file to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance with the
+ * License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.  See the
+ * License for the specific language governing permissions and limitations
+ * under the License.
  *
  ****************************************************************************/
 
+/****************************************************************************
+ * Included Files
+ ****************************************************************************/
+
 #include <nuttx/config.h>
+
 #include <stdint.h>
 #include <assert.h>
+#include <debug.h>
 
 #ifdef CONFIG_LEGACY_PAGING
 #  include <nuttx/page.h>
@@ -20,12 +39,25 @@
 #include "mmu.h"
 #include "arm_internal.h"
 #include "t113_lowputc.h"
+#include "t113_boot.h"
+
 #ifdef CONFIG_T113_BOOT0
 extern uint32_t _boot0_start;
 volatile uint32_t *g_boot0_anchor = &_boot0_start;
 #endif
 
-#include "t113_boot.h"
+/****************************************************************************
+ * Pre-processor Definitions
+ ****************************************************************************/
+
+#ifndef CONFIG_ARCH_ROMPGTABLE
+#  define NMAPPINGS \
+     (sizeof(section_mapping) / sizeof(struct section_mapping_s))
+#endif
+
+/****************************************************************************
+ * Private Data
+ ****************************************************************************/
 
 extern uint8_t _vector_start[];
 extern uint8_t _vector_end[];
@@ -61,10 +93,13 @@ static const struct section_mapping_s section_mapping[] =
     T113_DDR_MMUFLAGS,    T113_DDR_NSECTIONS
   },
 };
+#endif
 
-#define NMAPPINGS \
-  (sizeof(section_mapping) / sizeof(struct section_mapping_s))
+/****************************************************************************
+ * Private Functions
+ ****************************************************************************/
 
+#ifndef CONFIG_ARCH_ROMPGTABLE
 static inline void t113_setupmappings(void)
 {
   mmu_l1_map_regions(section_mapping, NMAPPINGS);
@@ -76,7 +111,8 @@ static void t113_vectormapping(void)
 {
   uint32_t vector_paddr = T113_VECTOR_PADDR & PTE_SMALL_PADDR_MASK;
   uint32_t vector_vaddr = T113_VECTOR_VADDR & PTE_SMALL_PADDR_MASK;
-  uint32_t end_paddr    = T113_VECTOR_PADDR + (_vector_end - _vector_start);
+  uint32_t end_paddr = T113_VECTOR_PADDR +
+                       (_vector_end - _vector_start);
 
   while (vector_paddr < end_paddr)
     {
@@ -105,6 +141,10 @@ static void t113_copyvectorblock(void)
       *dest++ = *src++;
     }
 }
+
+/****************************************************************************
+ * Public Functions
+ ****************************************************************************/
 
 void arm_boot(void)
 {

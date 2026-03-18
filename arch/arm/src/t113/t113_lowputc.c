@@ -20,12 +20,24 @@
  *
  ****************************************************************************/
 
+/****************************************************************************
+ * Included Files
+ ****************************************************************************/
+
 #include <nuttx/config.h>
+
 #include <stdint.h>
+#include <debug.h>
+
 #include <arch/board/board.h>
+
 #include "arm_internal.h"
 #include "hardware/t113_uart.h"
 #include "t113_lowputc.h"
+
+/****************************************************************************
+ * Pre-processor Definitions
+ ****************************************************************************/
 
 #if defined(CONFIG_UART0_SERIAL_CONSOLE)
 #  define CONSOLE_BASE   T113_UART0_VADDR
@@ -86,14 +98,19 @@
 #define CONSOLE_LCR_VALUE \
   (CONSOLE_LCR_DLS | CONSOLE_LCR_PAR | CONSOLE_LCR_STOP)
 
-#define T113_CCU_UART_BGR_REG  (0x0200190C)
-#define T113_GPIO_PORTF_CFG0   (0x020000F0)
+#define T113_CCU_UART_BGR_REG  (0x0200190c)
+#define T113_GPIO_PORTF_CFG0   (0x020000f0)
 #define T113_UART_USR_TFNF     (1 << 1)
+
+/****************************************************************************
+ * Public Functions
+ ****************************************************************************/
 
 void arm_lowputc(char ch)
 {
 #if defined(HAVE_SERIAL_CONSOLE)
-  while (!(getreg32(CONSOLE_BASE + T113_UART_USR_OFFSET) & T113_UART_USR_TFNF));
+  while (!(getreg32(CONSOLE_BASE + T113_UART_USR_OFFSET) &
+           T113_UART_USR_TFNF));
   putreg32((uint32_t)ch, CONSOLE_BASE + T113_UART_THR_OFFSET);
 #endif
 }
@@ -103,10 +120,6 @@ void t113_lowsetup(void)
 #if defined(HAVE_SERIAL_CONSOLE) && !defined(CONFIG_SUPPRESS_UART_CONFIG)
   uint32_t reg;
   int i;
-
-  /* Enable UART0 clock and pinmux before configuring registers.
-   * Matches sunxi_clock_init_uart(0) + pinmux from x4b r528_serial.c.
-   */
 
   reg = getreg32(T113_CCU_UART_BGR_REG);
   reg &= ~(1 << 16);
@@ -146,8 +159,6 @@ void t113_lowsetup(void)
   putreg32(UART_FCR_RT_ONE | UART_FCR_XFIFOR |
            UART_FCR_RFIFOR | UART_FCR_FIFOE,
            CONSOLE_BASE + T113_UART_FCR_OFFSET);
-
-  /* Disable UART0 interrupts: write IER=0, then mask in GIC */
 
   putreg32(0, CONSOLE_BASE + T113_UART_IER_OFFSET);
   putreg32(1 << (34 - 32), 0x03021184);
