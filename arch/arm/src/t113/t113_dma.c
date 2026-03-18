@@ -66,7 +66,7 @@ struct t113_dma_desc_s
   uint32_t len;
   uint32_t param;
   uint32_t link;
-} aligned_data(4);
+};
 
 /* Per-channel state */
 
@@ -135,9 +135,19 @@ static int t113_dma_irq1(int irq, void *context, void *arg)
  * Public Functions
  ****************************************************************************/
 
-void t113_dma_initialize(void)
+void arm_dma_initialize(void)
 {
   memset(g_dmachan, 0, sizeof(g_dmachan));
+
+  /* DMA bus clock gate: deassert reset (bit 16), enable clock (bit 0) */
+
+  putreg32(getreg32(T113_CCU_DMA_BGR) | (1 << 16), T113_CCU_DMA_BGR);
+  up_udelay(20);
+  putreg32(getreg32(T113_CCU_DMA_BGR) | (1 << 0), T113_CCU_DMA_BGR);
+
+  /* MBUS master clock gating: use fixed value matching boot0 set_mbus() */
+
+  putreg32(0x00000d87, T113_CCU_MBUS_MAT);
 
   /* Enable DMA auto-gating */
 

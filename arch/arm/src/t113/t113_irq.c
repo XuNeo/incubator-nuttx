@@ -20,6 +20,10 @@
  *
  ****************************************************************************/
 
+/****************************************************************************
+ * Included Files
+ ****************************************************************************/
+
 #include <nuttx/config.h>
 #include <assert.h>
 #include <nuttx/arch.h>
@@ -68,15 +72,7 @@ static void t113_usb0_quiesce(void)
 
 void up_irqinitialize(void)
 {
-  /* Hold Core1 in reset — single-core boot only */
-
   putreg32(getreg32(T113_C0_RST_CTRL) & ~(1 << 1), T113_C0_RST_CTRL);
-
-  /* Set CNTFRQ to 24 MHz — required because xfel boot path skips boot0
-   * which normally programs this register.
-   */
-
-  __asm__ volatile("mcr p15, 0, %0, c14, c0, 0" :: "r"(24000000));
 
   arm_gic0_initialize();
   arm_gic_initialize();

@@ -72,7 +72,7 @@ extern "C"
 #define EXTERN extern
 #endif
 
-void t113_dma_initialize(void);
+void arm_dma_initialize(void);
 
 DMA_HANDLE t113_dmachannel(void);
 void       t113_dmafree(DMA_HANDLE handle);

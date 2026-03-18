@@ -107,7 +107,7 @@ static void spi_recvblock(FAR struct spi_dev_s *dev, FAR void *buffer,
 
 /****************************************************************************
  * Private Data
-  ****************************************************************************/
+ ****************************************************************************/
 
 static inline void spi_putreg(struct t113_spidev_s *priv,
                                uint32_t offset, uint32_t val)
@@ -166,12 +166,15 @@ static const struct spi_ops_s g_spiops =
 #ifdef CONFIG_T113_SPI0
 static struct t113_spidev_s g_spi0dev =
 {
-  .spidev   = { .ops = &g_spiops },
+  .spidev =
+    {
+      .ops = &g_spiops
+    },
   .base     = T113_SPI0_BASE,
   .lock     = NXMUTEX_INITIALIZER,
-  .frequency= 0,
-  .nbits    = 8,
-  .mode     = SPIDEV_MODE0,
+  .frequency = 0,
+  .nbits     = 8,
+  .mode      = SPIDEV_MODE0,
 #ifdef CONFIG_T113_SPI0_DMA
   .rxsem    = SEM_INITIALIZER(0),
   .txsem    = SEM_INITIALIZER(0),
@@ -184,12 +187,15 @@ static struct t113_spidev_s g_spi0dev =
 #ifdef CONFIG_T113_SPI1
 static struct t113_spidev_s g_spi1dev =
 {
-  .spidev   = { .ops = &g_spiops },
+  .spidev =
+    {
+      .ops = &g_spiops
+    },
   .base     = T113_SPI1_BASE,
   .lock     = NXMUTEX_INITIALIZER,
-  .frequency= 0,
-  .nbits    = 8,
-  .mode     = SPIDEV_MODE0,
+  .frequency = 0,
+  .nbits     = 8,
+  .mode      = SPIDEV_MODE0,
 #ifdef CONFIG_T113_SPI1_DMA
   .rxsem    = SEM_INITIALIZER(0),
   .txsem    = SEM_INITIALIZER(0),
@@ -200,9 +206,8 @@ static struct t113_spidev_s g_spi1dev =
 #endif
 
 /****************************************************************************
-  * Private Functions
-  ****************************************************************************/
-
+ * Private Functions
+ ****************************************************************************/
 
 static void spi_reset(struct t113_spidev_s *priv)
 {
@@ -335,11 +340,19 @@ static void spi_setmode(FAR struct spi_dev_s *dev, enum spi_mode_e mode)
 
   switch (mode)
     {
-      case SPIDEV_MODE0: break;
-      case SPIDEV_MODE1: tcr |= SPI_TCR_CPHA; break;
-      case SPIDEV_MODE2: tcr |= SPI_TCR_CPOL; break;
-      case SPIDEV_MODE3: tcr |= SPI_TCR_CPOL | SPI_TCR_CPHA; break;
-      default: return;
+      case SPIDEV_MODE0:
+        break;
+      case SPIDEV_MODE1:
+        tcr |= SPI_TCR_CPHA;
+        break;
+      case SPIDEV_MODE2:
+        tcr |= SPI_TCR_CPOL;
+        break;
+      case SPIDEV_MODE3:
+        tcr |= SPI_TCR_CPOL | SPI_TCR_CPHA;
+        break;
+      default:
+        return;
     }
 
   spi_putreg(priv, SPI_TCR_REG, tcr);
@@ -361,6 +374,7 @@ static void spi_exchange_pio(FAR struct t113_spidev_s *priv,
   size_t         pos = 0;
   size_t         n;
   size_t         i;
+  int            timeout;
 
   while (pos < nwords)
     {
@@ -382,29 +396,25 @@ static void spi_exchange_pio(FAR struct t113_spidev_s *priv,
       spi_putreg(priv, SPI_TCR_REG,
                  spi_getreg(priv, SPI_TCR_REG) | SPI_TCR_XCH);
 
-      {
-        int timeout = 1000000;
-        while ((spi_getreg(priv, SPI_TCR_REG) & SPI_TCR_XCH) &&
-               --timeout > 0);
-        if (timeout <= 0)
-          {
-            spierr("SPI XCH timeout pos=%lu n=%lu\n",
-                   (unsigned long)pos, (unsigned long)n);
-            return;
-          }
-      }
+      timeout = 1000000;
+      while ((spi_getreg(priv, SPI_TCR_REG) & SPI_TCR_XCH) &&
+             --timeout > 0);
+      if (timeout <= 0)
+        {
+          spierr("SPI XCH timeout pos=%lu n=%lu\n",
+                 (unsigned long)pos, (unsigned long)n);
+          return;
+        }
 
-      {
-        int timeout = 1000000;
-        while (((spi_getreg(priv, SPI_FSR_REG) & 0xff) < n) &&
-               --timeout > 0);
-        if (timeout <= 0)
-          {
-            spierr("SPI RX timeout pos=%lu n=%lu\n",
-                   (unsigned long)pos, (unsigned long)n);
-            return;
-          }
-      }
+      timeout = 1000000;
+      while (((spi_getreg(priv, SPI_FSR_REG) & 0xff) < n) &&
+             --timeout > 0);
+      if (timeout <= 0)
+        {
+          spierr("SPI RX timeout pos=%lu n=%lu\n",
+                 (unsigned long)pos, (unsigned long)n);
+          return;
+        }
 
       for (i = 0; i < n; i++)
         {
@@ -418,7 +428,6 @@ static void spi_exchange_pio(FAR struct t113_spidev_s *priv,
       pos += n;
     }
 }
-
 
 #if defined(CONFIG_T113_SPI0_DMA) || defined(CONFIG_T113_SPI1_DMA)
 static void spi_rxcallback(DMA_HANDLE handle, uint8_t status, void *arg)
@@ -460,8 +469,8 @@ static void spi_exchange_dma(FAR struct t113_spidev_s *priv,
   txcfg.dst_width  = DMAC_WIDTH_8BIT;
   txcfg.src_burst  = DMAC_BURST_1;
   txcfg.dst_burst  = DMAC_BURST_1;
-  txcfg.src_linear = (txbuf != NULL);  /* dummy_tx if no txbuf */
-  txcfg.dst_linear = false;   /* SPI FIFO = IO */
+  txcfg.src_linear = (txbuf != NULL); /* dummy_tx if no txbuf */
+  txcfg.dst_linear = false;           /* SPI FIFO = IO */
   txcfg.wait_cyc   = 0;
 
   priv->rxresult = 0;

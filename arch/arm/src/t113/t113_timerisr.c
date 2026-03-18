@@ -33,6 +33,7 @@
  * Pre-processor Definitions
  ****************************************************************************/
 
+#define T113_CNTFRQ           24000000
 #define GIC_IRQ_SEC_PHY_TIMER 29
 
 /****************************************************************************
@@ -47,9 +48,12 @@ static uint32_t g_timer_reload;
 
 static inline uint32_t read_cntfrq(void)
 {
-  uint32_t val;
-  __asm__ volatile("mrc p15, 0, %0, c14, c0, 0" : "=r"(val));
-  return val;
+  uint32_t cntfrq;
+  uint32_t freq = T113_CNTFRQ;
+  __asm__ volatile("mrc p15, 0, %0, c14, c0, 0" : "=r"(cntfrq));
+  __asm__ volatile("mcr p15, 0, %0, c14, c0, 0" :: "r"(freq));
+  __asm__ volatile("mrc p15, 0, %0, c14, c0, 0" : "=r"(cntfrq));
+  return cntfrq;
 }
 
 static inline void write_cntp_tval(uint32_t val)
@@ -80,11 +84,6 @@ static int t113_timerisr(int irq, void *context, void *arg)
 void up_timer_initialize(void)
 {
   uint32_t cntfrq = read_cntfrq();
-  if (cntfrq == 0)
-    {
-      cntfrq = 24000000;
-      __asm__ volatile("mcr p15, 0, %0, c14, c0, 0" :: "r"(cntfrq));
-    }
 
   g_timer_reload = cntfrq / CONFIG_USEC_PER_TICK;
 
