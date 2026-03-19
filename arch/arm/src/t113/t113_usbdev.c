@@ -95,24 +95,99 @@
 #define PHYIN2LOG(n)         ((n) | USB_DIR_IN)
 #define PHYOUT2LOG(n)        ((n) | USB_DIR_OUT)
 
-/* Register access helpers */
+/* Register access helpers.
+ *
+ * T113 MUSB silicon quirk: 8-bit writes (strb) to MUSB registers are
+ * silently ignored by the bus interconnect for certain address ranges.
+ * This has been confirmed on INTRUSBE (offset 0x50) and suspected on
+ * FADDR, INDEX, POWER, and FIFO size registers.
+ *
+ * The reference vendor driver works around this by using ISB/DSB
+ * barriers around every register write.  However, testing shows that
+ * barriers alone are insufficient — the byte-enable lanes are simply
+ * not routed for 8-bit transactions on this IP.
+ *
+ * Solution: Use 16-bit (strh) writes for 8-bit registers that share a
+ * half-word with another register, and 32-bit writes for those that
+ * occupy a word alone.  Read-modify-write is used to preserve neighbor
+ * register values in the same half-word / word.
+ *
+ * MUSB register layout at 0x40-0x43 (one 32-bit word):
+ *   byte 0x40: POWER
+ *   byte 0x41: DEVCTL
+ *   byte 0x42: INDEX
+ *   byte 0x43: VEND0
+ *   half-word 0x40: POWER (low) + DEVCTL (high)
+ *   half-word 0x42: INDEX (low) + VEND0 (high)
+ *
+ * MUSB register layout at 0x90-0x93:
+ *   byte 0x90: TXFIFOSZ
+ *   half-word 0x92: TXFIFOADD
+ * Similarly at 0x94-0x97:
+ *   byte 0x94: RXFIFOSZ
+ *   half-word 0x96: RXFIFOADD
+ *
+ * FADDR at 0x98 occupies a word alone (0x98-0x9B).
+ */
 
 #define musb_getreg8(off)    getreg8(MUSB_BASE + (off))
-#define musb_putreg8(v, off) putreg8((v), MUSB_BASE + (off))
-#define musb_getreg16(off)   getreg16(MUSB_BASE + (off))
-#define musb_putreg16(v, off) putreg16((v), MUSB_BASE + (off))
-#define musb_getreg32(off)   getreg32(MUSB_BASE + (off))
-#define musb_putreg32(v, off) putreg32((v), MUSB_BASE + (off))
 
 #define phy_getreg32(off)    getreg32(PHY_BASE + (off))
 #define phy_putreg32(v, off) putreg32((v), PHY_BASE + (off))
 
+/* T113 MUSB register access with ISB/DSB barriers matching vendor HAL.
+ * The vendor hal_writeb/hal_readb use ISB before and DSB after every
+ * register access.  Without these barriers, writes may be silently
+ * dropped by the CPU pipeline.
+ */
+
+static inline void musb_writeb(uint8_t val, uint32_t off)
+{
+  UP_ISB();
+  putreg8(val, MUSB_BASE + off);
+  UP_DSB();
+}
+
+static inline uint8_t musb_readb(uint32_t off)
+{
+  UP_ISB();
+  uint8_t v = getreg8(MUSB_BASE + off);
+  UP_DSB();
+  return v;
+}
+
+static inline void musb_putreg16(uint16_t val, uint32_t off)
+{
+  UP_ISB();
+  putreg16(val, MUSB_BASE + off);
+  UP_DSB();
+}
+
+static inline uint16_t musb_getreg16(uint32_t off)
+{
+  UP_ISB();
+  uint16_t v = getreg16(MUSB_BASE + off);
+  UP_DSB();
+  return v;
+}
+
+static inline void musb_putreg32(uint32_t val, uint32_t off)
+{
+  UP_ISB();
+  putreg32(val, MUSB_BASE + off);
+  UP_DSB();
+}
+
+static inline uint32_t musb_getreg32(uint32_t off)
+{
+  UP_ISB();
+  uint32_t v = getreg32(MUSB_BASE + off);
+  UP_DSB();
+  return v;
+}
+
 /* Modify helpers */
 
-#define musb_setbits8(off, bits) \
-  musb_putreg8(musb_getreg8(off) | (bits), (off))
-#define musb_clrbits8(off, bits) \
-  musb_putreg8(musb_getreg8(off) & ~(bits), (off))
 #define musb_setbits16(off, bits) \
   musb_putreg16(musb_getreg16(off) | (bits), (off))
 #define musb_clrbits16(off, bits) \
@@ -151,6 +226,18 @@ volatile uint32_t g_usb_class_ret;
 volatile uint32_t g_usb_ep0_submit;
 volatile uint32_t g_usb_ep0_txpktrdy;
 volatile uint32_t g_usb_ep0_csr0;
+volatile uint32_t g_usb_isr_csr0_raw;
+volatile uint32_t g_usb_isr_txintr_raw;
+volatile uint32_t g_usb_isr_ep0_check;
+volatile uint32_t g_usb_isr_word80;
+volatile uint32_t g_usb_isr_word88;
+volatile uint32_t g_usb_isr_word40;
+volatile uint32_t g_usb_ccu_post_rxcount;
+volatile uint32_t g_usb_init_post_rxcount;
+volatile uint32_t g_usb_isr_w80;
+volatile uint32_t g_usb_isr_w84;
+volatile uint32_t g_usb_isr_w88;
+volatile uint32_t g_usb_isr_w8c;
 
 /* EP0 state machine */
 
@@ -486,7 +573,7 @@ static bool t113_rqenqueue(struct t113_ep_s *privep,
 
 static void t113_ep_select(uint8_t epno)
 {
-  musb_putreg8(epno, MUSB_INDEX);
+  musb_writeb(epno, MUSB_INDEX);
 }
 
 /****************************************************************************
@@ -897,14 +984,22 @@ static void t113_ep0_setup(struct t113_usbdev_s *priv)
 {
   struct usb_ctrlreq_s ctrl;
   uint16_t csr0;
+  uint16_t rxcount;
 
   t113_ep_select(0);
   csr0 = musb_getreg16(MUSB_CSR0);
+  rxcount = musb_getreg16(MUSB_RXCOUNT);
+
+  if (priv->paddrset)
+    {
+      musb_putreg16(MUSB_CSR0_SVDSETUPEND, MUSB_CSR0);
+      musb_writeb(priv->paddr, MUSB_FADDR);
+      priv->paddrset = false;
+    }
 
   if (csr0 & MUSB_CSR0_SENTSTALL)
     {
-      musb_clrbits16(MUSB_CSR0, MUSB_CSR0_SENDSTALL);
-      musb_clrbits16(MUSB_CSR0, MUSB_CSR0_SENTSTALL);
+      musb_putreg16(0, MUSB_CSR0);
       priv->ep0state = EP0STATE_IDLE;
       return;
     }
@@ -915,9 +1010,6 @@ static void t113_ep0_setup(struct t113_usbdev_s *priv)
       priv->ep0state = EP0STATE_IDLE;
     }
 
-  /* Check for RXPKTRDY (SETUP packet available) */
-
-  csr0 = musb_getreg16(MUSB_CSR0);
   if (!(csr0 & MUSB_CSR0_RXPKTRDY))
     {
       /* No SETUP packet, handle ongoing transfers */
@@ -937,7 +1029,7 @@ static void t113_ep0_setup(struct t113_usbdev_s *priv)
 
             if (priv->paddrset)
               {
-                musb_putreg8(priv->paddr, MUSB_FADDR);
+                musb_writeb(priv->paddr, MUSB_FADDR);
                 priv->paddrset = false;
                 usb_trace_info("FADDR set to %d\n", priv->paddr);
               }
@@ -956,9 +1048,16 @@ static void t113_ep0_setup(struct t113_usbdev_s *priv)
       return;
     }
 
-  /* Read the 8-byte SETUP packet from EP0 FIFO */
-
   t113_fifo_read(0, (uint8_t *)&ctrl, USB_SIZEOF_CTRLREQ);
+  musb_putreg16(MUSB_CSR0_SVDRXPKTRDY, MUSB_CSR0);
+  {
+    uint16_t post = musb_getreg16(MUSB_CSR0);
+    if (post & MUSB_CSR0_RXPKTRDY)
+      {
+        g_usb_ep0_txpktrdy++;
+      }
+  }
+
   memcpy(&priv->ep0ctrl, &ctrl, USB_SIZEOF_CTRLREQ);
 
   g_usb_ep0_rxpktrdy++;
@@ -966,6 +1065,15 @@ static void t113_ep0_setup(struct t113_usbdev_s *priv)
   g_usb_setup_req = ctrl.req;
   g_usb_setup_value = GETUINT16(ctrl.value);
   g_usb_setup_len = GETUINT16(ctrl.len);
+  if (ctrl.req == USB_REQ_GETDESCRIPTOR)
+    {
+      g_usb_isr_w80++;
+    }
+
+  if (ctrl.req == USB_REQ_SETADDRESS)
+    {
+      g_usb_isr_w84++;
+    }
 
   usb_trace_info("SETUP: type=0x%02x req=0x%02x val=0x%04x "
                  "idx=0x%04x len=0x%04x\n",
@@ -1404,19 +1512,16 @@ static void t113_musb_reset(struct t113_usbdev_s *priv)
   int i;
 
   t113_ep_select(0);
-  g_usb_ep0_csr0 = musb_getreg16(MUSB_CSR0);
+  musb_writeb(0, MUSB_FADDR);
+  musb_putreg16(MUSB_CSR0_FLUSHFIFO, MUSB_CSR0);
+  musb_putreg16(MUSB_CSR0_SVDSETUPEND | MUSB_CSR0_SVDRXPKTRDY,
+                MUSB_CSR0);
 
-  musb_putreg8(0, MUSB_FADDR);
   priv->paddr = 0;
   priv->paddrset = false;
   priv->ep0state = EP0STATE_IDLE;
   priv->ep0datlen = 0;
   priv->ep0reqlen = 0;
-
-  t113_ep_select(0);
-  musb_putreg16(MUSB_CSR0_FLUSHFIFO, MUSB_CSR0);
-  musb_putreg16(MUSB_CSR0_SVDSETUPEND | MUSB_CSR0_SVDRXPKTRDY,
-                MUSB_CSR0);
 
   for (i = 0; i < T113_NLOGEP; i++)
     {
@@ -1425,11 +1530,9 @@ static void t113_musb_reset(struct t113_usbdev_s *priv)
 
   priv->usbdev.speed = USB_SPEED_FULL;
 
-  t113_ep_select(0);
-
-  musb_putreg16(1, MUSB_INTRTXE);
-  musb_putreg32(MUSB_INTR_SUSPEND | MUSB_INTR_RESUME | MUSB_INTR_RESET,
-               MUSB_INTRUSBE);
+  musb_putreg16(0, MUSB_INTRTXE);
+  musb_writeb(MUSB_INTR_SUSPEND | MUSB_INTR_RESUME | MUSB_INTR_RESET |
+              MUSB_INTR_SOF, MUSB_INTRUSBE);
 
   if (priv->driver != NULL)
     {
@@ -1459,11 +1562,9 @@ static int t113_usbdev_interrupt(int irq, void *context, void *arg)
 
   /* Save current EP index */
 
-  old_index = musb_getreg8(MUSB_INDEX);
+  old_index = musb_readb(MUSB_INDEX);
 
-  /* Read and clear interrupt status registers */
-
-  usbintr = musb_getreg32(MUSB_INTRUSB) & 0xff;
+  usbintr = musb_readb(MUSB_INTRUSB);
   txintr  = musb_getreg16(MUSB_INTRTX);
   rxintr  = musb_getreg16(MUSB_INTRRX);
 
@@ -1472,26 +1573,12 @@ static int t113_usbdev_interrupt(int irq, void *context, void *arg)
   g_usb_last_txintr = txintr;
   g_usb_last_rxintr = rxintr;
 
-  /* Clear interrupt status (write-1-to-clear) */
-
   if (usbintr)
     {
-      musb_putreg32(usbintr, MUSB_INTRUSB);
+      musb_writeb(usbintr, MUSB_INTRUSB);
     }
 
-  if (txintr)
-    {
-      musb_putreg16(txintr, MUSB_INTRTX);
-    }
-
-  if (rxintr)
-    {
-      musb_putreg16(rxintr, MUSB_INTRRX);
-    }
-
-  /* Filter out disabled interrupts */
-
-  usbintr &= musb_getreg32(MUSB_INTRUSBE);
+  usbintr &= musb_readb(MUSB_INTRUSBE);
   txintr  &= musb_getreg16(MUSB_INTRTXE);
   rxintr  &= musb_getreg16(MUSB_INTRRXE);
 
@@ -1501,7 +1588,6 @@ static int t113_usbdev_interrupt(int irq, void *context, void *arg)
     {
       t113_musb_reset(priv);
       g_usb_reset_count++;
-      return OK;
     }
 
   /* Handle suspend */
@@ -1528,14 +1614,20 @@ static int t113_usbdev_interrupt(int irq, void *context, void *arg)
         }
     }
 
-  /* Handle EP0 (TX interrupt bit 0) */
+  /* Handle EP0 */
 
   t113_ep_select(0);
   {
     uint16_t csr0 = musb_getreg16(MUSB_CSR0);
+
     g_usb_ep0_csr0 = csr0;
-    if ((txintr & 1) || (csr0 & MUSB_CSR0_RXPKTRDY))
+    g_usb_isr_ep0_check++;
+
+    if ((csr0 & (MUSB_CSR0_RXPKTRDY | MUSB_CSR0_SENTSTALL |
+                 MUSB_CSR0_SETUPEND)) ||
+        (priv->ep0state != EP0STATE_IDLE))
       {
+        g_usb_ep0_rxpktrdy++;
         t113_ep0_setup(priv);
         g_usb_ep0_count++;
         g_usb_ep0_state = priv->ep0state;
@@ -1562,9 +1654,7 @@ static int t113_usbdev_interrupt(int irq, void *context, void *arg)
         }
     }
 
-  /* Restore EP index */
-
-  musb_putreg8(old_index, MUSB_INDEX);
+  musb_writeb(old_index, MUSB_INDEX);
 
   return OK;
 }
@@ -1581,16 +1671,22 @@ static void t113_ccu_init(void)
 {
   uint32_t reg;
 
+  reg = getreg32(T113_CCU_USB_BGR);
+  reg &= ~(USB_BGR_EHCI0_RST | USB_BGR_OHCI0_RST |
+            USB_BGR_EHCI0_GATING | USB_BGR_OHCI0_GATING);
+  reg |= USB_BGR_OTG0_RST | USB_BGR_OTG0_GATING;
+  putreg32(reg, T113_CCU_USB_BGR);
+
   reg = getreg32(T113_CCU_USB0_CLK);
   reg |= USB0_CLK_PHYRST_DEASSERT;
   putreg32(reg, T113_CCU_USB0_CLK);
 
-  reg = getreg32(T113_CCU_USB_BGR);
-  reg |= USB_BGR_OTG0_RST | USB_BGR_OTG0_GATING;
-  putreg32(reg, T113_CCU_USB_BGR);
-
   up_mdelay(2);
 }
+
+volatile uint32_t g_usb_ccu_post_rxcount;
+volatile uint32_t g_usb_ccu_post_csr0;
+volatile uint32_t g_usb_init_post_rxcount;
 
 /****************************************************************************
  * Name: t113_phy_init
@@ -1624,6 +1720,8 @@ static void t113_phy_init(void)
   reg |= USB_ISCR_FORCE_VBUS_HIGH;
   phy_putreg32(reg, USBPHY_ISCR);
 
+  phy_setbits32(USBPHY_ISCR, (1 << 16) | (1 << 17));
+
   /* Clear change detect again */
 
   phy_clrbits32(USBPHY_ISCR, USB_ISCR_VBUS_CHANGE_DETECT |
@@ -1640,11 +1738,9 @@ static void t113_phy_init(void)
 
   /* Select PIO bus mode (VEND0 register) */
 
-  musb_putreg8(0, MUSB_VEND0);
+  musb_writeb(0, MUSB_VEND0);
 
-  /* PHY calibration via VC bus (bit-bang through PHYCTL28NM register).
-   * Without this calibration, MUSB POWER.SOFTCONN cannot be written.
-   */
+#if 0 /* Skip VC bus calibration — FEL already did it */
 
   {
     uint32_t phyctl;
@@ -1706,6 +1802,7 @@ static void t113_phy_init(void)
   }
 
   phy_putreg32(USB_PHYCTL28NM_VBUSVLDEXT, USBPHY_PHYCTL28NM);
+#endif
 
   up_mdelay(1);
 }
@@ -1722,29 +1819,16 @@ static void t113_musb_init(struct t113_usbdev_s *priv)
 {
   int i;
 
-  musb_putreg32(0, MUSB_INTRUSBE);
+  musb_writeb(0, MUSB_INTRUSBE);
   musb_putreg16(0, MUSB_INTRTXE);
   musb_putreg16(0, MUSB_INTRRXE);
+  musb_writeb(0xff, MUSB_INTRUSB);
   musb_putreg16(0xffff, MUSB_INTRTX);
   musb_putreg16(0xffff, MUSB_INTRRX);
-  musb_putreg32(0xff, MUSB_INTRUSB);
-  musb_clrbits8(MUSB_POWER, MUSB_POWER_SOFTCONN);
+  musb_writeb(musb_readb(MUSB_POWER) &
+              ~(MUSB_POWER_SOFTCONN | MUSB_POWER_HSENAB), MUSB_POWER);
 
-  musb_putreg8(0, MUSB_FADDR);
-
-  t113_ep_select(0);
-  {
-    uint16_t cnt = musb_getreg16(MUSB_RXCOUNT);
-    while (cnt > 0)
-      {
-        (void)musb_getreg8(MUSB_FIFO(0));
-        cnt--;
-      }
-
-    musb_putreg16(MUSB_CSR0_FLUSHFIFO, MUSB_CSR0);
-    musb_putreg16(MUSB_CSR0_SVDSETUPEND | MUSB_CSR0_SVDRXPKTRDY,
-                  MUSB_CSR0);
-  }
+  musb_writeb(0, MUSB_FADDR);
 
   for (i = 0; i < (int)NFIFOCONFIGS; i++)
     {
@@ -1755,7 +1839,6 @@ static void t113_musb_init(struct t113_usbdev_s *priv)
 
       if (cfg->epno == 0)
         {
-          musb_putreg16(MUSB_CSR0_FLUSHFIFO, MUSB_CSR0);
           continue;
         }
 
@@ -1772,7 +1855,7 @@ static void t113_musb_init(struct t113_usbdev_s *priv)
           musb_putreg16(MUSB_TXCSR_FLUSHFIFO | MUSB_TXCSR_CLRDATATOG,
                         MUSB_TXCSR);
           musb_putreg16(cfg->size, MUSB_TXMAXP);
-          musb_putreg8(fifosz, MUSB_TXFIFOSZ);
+          musb_writeb(fifosz, MUSB_TXFIFOSZ);
           musb_putreg16(FIFO_ADDR(cfg->addr), MUSB_TXFIFOADD);
         }
       else
@@ -1782,7 +1865,7 @@ static void t113_musb_init(struct t113_usbdev_s *priv)
           musb_putreg16(MUSB_RXCSR_FLUSHFIFO | MUSB_RXCSR_CLRDATATOG,
                         MUSB_RXCSR);
           musb_putreg16(cfg->size, MUSB_RXMAXP);
-          musb_putreg8(fifosz, MUSB_RXFIFOSZ);
+          musb_writeb(fifosz, MUSB_RXFIFOSZ);
           musb_putreg16(FIFO_ADDR(cfg->addr), MUSB_RXFIFOADD);
         }
     }
@@ -1795,15 +1878,13 @@ static void t113_musb_init(struct t113_usbdev_s *priv)
 
 static void t113_musb_enable(void)
 {
-  /* usbc_udc_enable: configure and set SOFTCONN */
+  musb_writeb(musb_readb(MUSB_POWER) & ~MUSB_POWER_ISOUPDATE, MUSB_POWER);
 
-  musb_clrbits8(MUSB_POWER, MUSB_POWER_ISOUPDATE);
+  musb_writeb(MUSB_INTR_SUSPEND | MUSB_INTR_RESUME | MUSB_INTR_RESET |
+              MUSB_INTR_SOF, MUSB_INTRUSBE);
+  musb_putreg16(0, MUSB_INTRTXE);
 
-  musb_putreg32(MUSB_INTR_SUSPEND | MUSB_INTR_RESUME | MUSB_INTR_RESET,
-               MUSB_INTRUSBE);
-  musb_putreg16(1, MUSB_INTRTXE);
-
-  musb_setbits8(MUSB_POWER, MUSB_POWER_SOFTCONN);
+  musb_writeb(musb_readb(MUSB_POWER) | MUSB_POWER_SOFTCONN, MUSB_POWER);
 }
 
 /****************************************************************************
@@ -2329,9 +2410,9 @@ static int t113_getframe(struct usbdev_s *dev)
 static int t113_wakeup(struct usbdev_s *dev)
 {
   UNUSED(dev);
-  musb_setbits8(MUSB_POWER, MUSB_POWER_RESUME);
+  musb_writeb(musb_readb(MUSB_POWER) | MUSB_POWER_RESUME, MUSB_POWER);
   up_mdelay(10);
-  musb_clrbits8(MUSB_POWER, MUSB_POWER_RESUME);
+  musb_writeb(musb_readb(MUSB_POWER) & ~MUSB_POWER_RESUME, MUSB_POWER);
   return OK;
 }
 
@@ -2364,11 +2445,13 @@ static int t113_pullup(struct usbdev_s *dev, bool enable)
 
   if (enable)
     {
-      musb_setbits8(MUSB_POWER, MUSB_POWER_SOFTCONN);
+      musb_writeb(musb_readb(MUSB_POWER) | MUSB_POWER_SOFTCONN,
+                  MUSB_POWER);
     }
   else
     {
-      musb_clrbits8(MUSB_POWER, MUSB_POWER_SOFTCONN);
+      musb_writeb(musb_readb(MUSB_POWER) & ~MUSB_POWER_SOFTCONN,
+                  MUSB_POWER);
     }
 
   return OK;
@@ -2471,6 +2554,11 @@ void arm_usbinitialize(void)
     extern int cdcacm_initialize(int minor, FAR void **handle);
     cdcacm_initialize(0, NULL);
   }
+#elif defined(CONFIG_USBADB)
+  {
+    extern FAR void *usbdev_adb_initialize(void);
+    usbdev_adb_initialize();
+  }
 #endif
 
   t113_musb_enable();
@@ -2494,11 +2582,11 @@ void arm_usbuninitialize(void)
 
   /* Disconnect from host */
 
-  musb_clrbits8(MUSB_POWER, MUSB_POWER_SOFTCONN);
+  musb_writeb(musb_readb(MUSB_POWER) & ~MUSB_POWER_SOFTCONN, MUSB_POWER);
 
   /* Disable all interrupt sources */
 
-  musb_putreg32(0, MUSB_INTRUSBE);
+  musb_writeb(0, MUSB_INTRUSBE);
   musb_putreg16(0, MUSB_INTRTXE);
   musb_putreg16(0, MUSB_INTRRXE);
 
@@ -2552,19 +2640,9 @@ int usbdev_register(struct usbdevclass_driver_s *driver)
 
   usb_trace_info("usbdev_register: class driver bound\n");
 
-  /* Force USB re-enumeration: disconnect then reconnect.
-   * Must use putreg32 because 8-bit writes to MUSB_POWER
-   * are ignored in task context on T113.
-   */
-
-  {
-    uint32_t pwr = musb_getreg32(MUSB_POWER & ~3u);
-    pwr &= ~(uint32_t)MUSB_POWER_SOFTCONN;
-    musb_putreg32(pwr, MUSB_POWER & ~3u);
-    up_mdelay(500);
-    pwr |= (uint32_t)MUSB_POWER_SOFTCONN;
-    musb_putreg32(pwr, MUSB_POWER & ~3u);
-  }
+  musb_writeb(musb_readb(MUSB_POWER) & ~MUSB_POWER_SOFTCONN, MUSB_POWER);
+  up_mdelay(2000);
+  musb_writeb(musb_readb(MUSB_POWER) | MUSB_POWER_SOFTCONN, MUSB_POWER);
 
   return OK;
 }
@@ -2590,7 +2668,7 @@ int usbdev_unregister(struct usbdevclass_driver_s *driver)
 
   /* Disconnect from host */
 
-  musb_clrbits8(MUSB_POWER, MUSB_POWER_SOFTCONN);
+  musb_writeb(musb_readb(MUSB_POWER) & ~MUSB_POWER_SOFTCONN, MUSB_POWER);
 
   /* Unbind the class driver */
 
@@ -2601,7 +2679,7 @@ int usbdev_unregister(struct usbdevclass_driver_s *driver)
 
   /* Reconnect to allow new class driver binding */
 
-  musb_setbits8(MUSB_POWER, MUSB_POWER_SOFTCONN);
+  musb_writeb(musb_readb(MUSB_POWER) | MUSB_POWER_SOFTCONN, MUSB_POWER);
 
   usb_trace_info("usbdev_unregister: class driver unbound\n");
   return OK;
