@@ -30,6 +30,10 @@
 #include <debug.h>
 #include <errno.h>
 
+#ifdef CONFIG_CDCACM
+#  include <nuttx/usb/cdcacm.h>
+#endif
+
 #ifdef CONFIG_T113_SPI0
 #  include <nuttx/spi/spi.h>
 #  include "t113_spi.h"
