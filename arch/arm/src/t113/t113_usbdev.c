@@ -901,14 +901,18 @@ static void t113_ep0_setup(struct t113_usbdev_s *priv)
   t113_ep_select(0);
   csr0 = musb_getreg16(MUSB_CSR0);
 
-  /* Clear SETUPEND if set */
+  if (csr0 & MUSB_CSR0_SENTSTALL)
+    {
+      musb_clrbits16(MUSB_CSR0, MUSB_CSR0_SENDSTALL);
+      musb_clrbits16(MUSB_CSR0, MUSB_CSR0_SENTSTALL);
+      priv->ep0state = EP0STATE_IDLE;
+      return;
+    }
 
   if (csr0 & MUSB_CSR0_SETUPEND)
     {
       musb_putreg16(MUSB_CSR0_SVDSETUPEND, MUSB_CSR0);
       priv->ep0state = EP0STATE_IDLE;
-
-      usb_trace_info("EP0: SETUPEND cleared\n");
     }
 
   /* Check for RXPKTRDY (SETUP packet available) */
@@ -1399,12 +1403,20 @@ static void t113_musb_reset(struct t113_usbdev_s *priv)
 {
   int i;
 
+  t113_ep_select(0);
+  g_usb_ep0_csr0 = musb_getreg16(MUSB_CSR0);
+
   musb_putreg8(0, MUSB_FADDR);
   priv->paddr = 0;
   priv->paddrset = false;
   priv->ep0state = EP0STATE_IDLE;
   priv->ep0datlen = 0;
   priv->ep0reqlen = 0;
+
+  t113_ep_select(0);
+  musb_putreg16(MUSB_CSR0_FLUSHFIFO, MUSB_CSR0);
+  musb_putreg16(MUSB_CSR0_SVDSETUPEND | MUSB_CSR0_SVDRXPKTRDY,
+                MUSB_CSR0);
 
   for (i = 0; i < T113_NLOGEP; i++)
     {
@@ -1416,7 +1428,7 @@ static void t113_musb_reset(struct t113_usbdev_s *priv)
   t113_ep_select(0);
 
   musb_putreg16(1, MUSB_INTRTXE);
-  musb_putreg8(MUSB_INTR_SUSPEND | MUSB_INTR_RESUME | MUSB_INTR_RESET,
+  musb_putreg32(MUSB_INTR_SUSPEND | MUSB_INTR_RESUME | MUSB_INTR_RESET,
                MUSB_INTRUSBE);
 
   if (priv->driver != NULL)
@@ -1451,7 +1463,7 @@ static int t113_usbdev_interrupt(int irq, void *context, void *arg)
 
   /* Read and clear interrupt status registers */
 
-  usbintr = musb_getreg8(MUSB_INTRUSB);
+  usbintr = musb_getreg32(MUSB_INTRUSB) & 0xff;
   txintr  = musb_getreg16(MUSB_INTRTX);
   rxintr  = musb_getreg16(MUSB_INTRRX);
 
@@ -1464,7 +1476,7 @@ static int t113_usbdev_interrupt(int irq, void *context, void *arg)
 
   if (usbintr)
     {
-      musb_putreg8(usbintr, MUSB_INTRUSB);
+      musb_putreg32(usbintr, MUSB_INTRUSB);
     }
 
   if (txintr)
@@ -1479,7 +1491,7 @@ static int t113_usbdev_interrupt(int irq, void *context, void *arg)
 
   /* Filter out disabled interrupts */
 
-  usbintr &= musb_getreg8(MUSB_INTRUSBE);
+  usbintr &= musb_getreg32(MUSB_INTRUSBE);
   txintr  &= musb_getreg16(MUSB_INTRTXE);
   rxintr  &= musb_getreg16(MUSB_INTRRXE);
 
@@ -1489,11 +1501,7 @@ static int t113_usbdev_interrupt(int irq, void *context, void *arg)
     {
       t113_musb_reset(priv);
       g_usb_reset_count++;
-      txintr = musb_getreg16(MUSB_INTRTX);
-      if (txintr)
-        {
-          musb_putreg16(txintr, MUSB_INTRTX);
-        }
+      return OK;
     }
 
   /* Handle suspend */
@@ -1525,6 +1533,7 @@ static int t113_usbdev_interrupt(int irq, void *context, void *arg)
   t113_ep_select(0);
   {
     uint16_t csr0 = musb_getreg16(MUSB_CSR0);
+    g_usb_ep0_csr0 = csr0;
     if ((txintr & 1) || (csr0 & MUSB_CSR0_RXPKTRDY))
       {
         t113_ep0_setup(priv);
@@ -1600,14 +1609,6 @@ static void t113_phy_init(void)
   phy_clrbits32(USBPHY_ISCR, USB_ISCR_VBUS_CHANGE_DETECT |
                               USB_ISCR_ID_CHANGE_DETECT |
                               USB_ISCR_DPDM_CHANGE_DETECT);
-
-  /* Enable DP/DM pullup */
-
-  phy_setbits32(USBPHY_ISCR, USB_ISCR_DPDM_PULLUP_EN);
-
-  /* Enable ID pullup */
-
-  phy_setbits32(USBPHY_ISCR, USB_ISCR_ID_PULLUP_EN);
 
   /* Force ID high (device mode) */
 
@@ -1704,6 +1705,8 @@ static void t113_phy_init(void)
       }
   }
 
+  phy_putreg32(USB_PHYCTL28NM_VBUSVLDEXT, USBPHY_PHYCTL28NM);
+
   up_mdelay(1);
 }
 
@@ -1719,15 +1722,29 @@ static void t113_musb_init(struct t113_usbdev_s *priv)
 {
   int i;
 
-  musb_putreg8(0, MUSB_INTRUSBE);
+  musb_putreg32(0, MUSB_INTRUSBE);
   musb_putreg16(0, MUSB_INTRTXE);
   musb_putreg16(0, MUSB_INTRRXE);
   musb_putreg16(0xffff, MUSB_INTRTX);
   musb_putreg16(0xffff, MUSB_INTRRX);
-  musb_putreg8(0xff, MUSB_INTRUSB);
+  musb_putreg32(0xff, MUSB_INTRUSB);
   musb_clrbits8(MUSB_POWER, MUSB_POWER_SOFTCONN);
 
   musb_putreg8(0, MUSB_FADDR);
+
+  t113_ep_select(0);
+  {
+    uint16_t cnt = musb_getreg16(MUSB_RXCOUNT);
+    while (cnt > 0)
+      {
+        (void)musb_getreg8(MUSB_FIFO(0));
+        cnt--;
+      }
+
+    musb_putreg16(MUSB_CSR0_FLUSHFIFO, MUSB_CSR0);
+    musb_putreg16(MUSB_CSR0_SVDSETUPEND | MUSB_CSR0_SVDRXPKTRDY,
+                  MUSB_CSR0);
+  }
 
   for (i = 0; i < (int)NFIFOCONFIGS; i++)
     {
@@ -1782,7 +1799,7 @@ static void t113_musb_enable(void)
 
   musb_clrbits8(MUSB_POWER, MUSB_POWER_ISOUPDATE);
 
-  musb_putreg8(MUSB_INTR_SUSPEND | MUSB_INTR_RESUME | MUSB_INTR_RESET,
+  musb_putreg32(MUSB_INTR_SUSPEND | MUSB_INTR_RESUME | MUSB_INTR_RESET,
                MUSB_INTRUSBE);
   musb_putreg16(1, MUSB_INTRTXE);
 
@@ -2481,7 +2498,7 @@ void arm_usbuninitialize(void)
 
   /* Disable all interrupt sources */
 
-  musb_putreg8(0, MUSB_INTRUSBE);
+  musb_putreg32(0, MUSB_INTRUSBE);
   musb_putreg16(0, MUSB_INTRTXE);
   musb_putreg16(0, MUSB_INTRRXE);
 

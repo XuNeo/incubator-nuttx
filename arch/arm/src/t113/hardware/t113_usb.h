@@ -174,7 +174,8 @@
 
 /* USB_PHYCTL28NM bits */
 
-#define USB_PHYCTL28NM_SIDDQ    (1 << 3)
+#define USB_PHYCTL28NM_SIDDQ      (1 << 3)
+#define USB_PHYCTL28NM_VBUSVLDEXT (1 << 5)
 
 /* USB_PHYSEL bits */
 
