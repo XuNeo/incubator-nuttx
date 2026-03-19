@@ -40,6 +40,10 @@
 void t113_cpu_enable(void);
 void arm_enable_smp(int cpu);
 #endif
+
+#ifdef CONFIG_T113_USBDEV
+void t113_usb_hw_init(void);
+#endif
 #include "arm.h"
 #include "mmu.h"
 #include "arm_internal.h"
@@ -185,6 +189,10 @@ void arm_boot(void)
 
 #ifdef CONFIG_SMP
   t113_cpu_enable();
+#endif
+
+#ifdef CONFIG_T113_USBDEV
+  t113_usb_hw_init();
 #endif
 
   t113_boardinitialize();

@@ -1855,8 +1855,6 @@ static void t113_musb_init(struct t113_usbdev_s *priv)
   musb_putreg16(1, MUSB_INTRTXE);
   musb_putreg16(0, MUSB_INTRRXE);
 
-  musb_setbits8(MUSB_POWER, MUSB_POWER_SOFTCONN);
-
   priv->ep0state = EP0STATE_IDLE;
   priv->attached = true;
 
@@ -2286,14 +2284,12 @@ static struct usbdev_ep_s *t113_allocep(struct usbdev_s *dev,
 
   DEBUGASSERT(dev != NULL);
 
-  flags = up_irq_save();
+  epphy &= USB_EPNO_MASK;
 
-  /* If epphy is 0, pick any available EP */
+  flags = up_irq_save();
 
   if (epphy == 0)
     {
-      /* Find first available EP (skip EP0) */
-
       for (epno = 1; epno < T113_NPHYSEP; epno++)
         {
           idx = in ? T113_EPPHYIN(epno) : T113_EPPHYOUT(epno);
@@ -2441,14 +2437,16 @@ static int t113_pullup(struct usbdev_s *dev, bool enable)
  ****************************************************************************/
 
 /****************************************************************************
- * Name: arm_usbinitialize
+ * Name: t113_usb_hw_init
  *
  * Description:
- *   Initialize USB device hardware.  Called from board bringup.
+ *   Initialize USB hardware (CCU, PHY, MUSB).
+ *   Must be called from arm_boot (early init) because T113 MUSB
+ *   POWER.SOFTCONN can only be written before scheduler starts.
  *
  ****************************************************************************/
 
-void arm_usbinitialize(void)
+void t113_usb_hw_init(void)
 {
   struct t113_usbdev_s *priv = &g_usbdev;
   int i;
@@ -2519,21 +2517,21 @@ void arm_usbinitialize(void)
 
   priv->epavail = T113_EPALLSET & ~T113_EPCTRLSET;
 
-  /* Initialize hardware */
-
   t113_ccu_init();
   t113_phy_init();
-
-  /* Attach USB interrupt handler */
-
-  irq_attach(T113_IRQ_USB0_DEVICE, t113_usbdev_interrupt, priv);
-
-  /* Initialize MUSB controller */
-
   t113_musb_init(priv);
 
-  /* Enable USB interrupt */
+  musb_setbits8(MUSB_POWER, MUSB_POWER_SOFTCONN);
 
+  priv->ep0state = EP0STATE_IDLE;
+  priv->attached = true;
+}
+
+void arm_usbinitialize(void)
+{
+  struct t113_usbdev_s *priv = &g_usbdev;
+
+  irq_attach(T113_IRQ_USB0_DEVICE, t113_usbdev_interrupt, priv);
   up_enable_irq(T113_IRQ_USB0_DEVICE);
 }
 
