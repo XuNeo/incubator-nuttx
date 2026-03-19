@@ -1557,6 +1557,11 @@ static int t113_usbdev_interrupt(int irq, void *context, void *arg)
     {
       t113_musb_reset(priv);
       g_usb_reset_count++;
+      txintr = musb_getreg16(MUSB_INTRTX);
+      if (txintr)
+        {
+          musb_putreg16(txintr, MUSB_INTRTX);
+        }
     }
 
   /* Handle suspend */
@@ -1631,21 +1636,25 @@ static void t113_ccu_init(void)
 {
   uint32_t reg;
 
-  /* USB0_CLK_REG: deassert PHY reset */
+  reg = getreg32(T113_CCU_USB_BGR);
+  reg &= ~(USB_BGR_OTG0_RST | USB_BGR_OTG0_GATING);
+  putreg32(reg, T113_CCU_USB_BGR);
+  up_mdelay(10);
+
+  reg = getreg32(T113_CCU_USB0_CLK);
+  reg &= ~USB0_CLK_PHYRST_DEASSERT;
+  putreg32(reg, T113_CCU_USB0_CLK);
+  up_mdelay(10);
 
   reg = getreg32(T113_CCU_USB0_CLK);
   reg |= USB0_CLK_PHYRST_DEASSERT;
   putreg32(reg, T113_CCU_USB0_CLK);
 
-  /* USB_BGR_REG: deassert OTG reset, enable OTG clock gate */
-
   reg = getreg32(T113_CCU_USB_BGR);
   reg |= USB_BGR_OTG0_RST | USB_BGR_OTG0_GATING;
   putreg32(reg, T113_CCU_USB_BGR);
 
-  /* Small delay for clock stabilization */
-
-  up_mdelay(2);
+  up_mdelay(10);
 }
 
 /****************************************************************************
@@ -1784,19 +1793,15 @@ static void t113_musb_init(struct t113_usbdev_s *priv)
 {
   int i;
 
-  /* Disable all interrupts */
-
   musb_putreg8(0, MUSB_INTRUSBE);
   musb_putreg16(0, MUSB_INTRTXE);
   musb_putreg16(0, MUSB_INTRRXE);
 
-  /* Read interrupt status to clear any pending bits */
+  musb_putreg16(0xffff, MUSB_INTRTX);
+  musb_putreg16(0xffff, MUSB_INTRRX);
+  musb_putreg8(0xff, MUSB_INTRUSB);
 
-  (void)musb_getreg8(MUSB_INTRUSB);
-  (void)musb_getreg16(MUSB_INTRTX);
-  (void)musb_getreg16(MUSB_INTRRX);
-
-  /* Set address to 0 */
+  musb_putreg8(0, MUSB_POWER);
 
   musb_putreg8(0, MUSB_FADDR);
 
@@ -1851,7 +1856,7 @@ static void t113_musb_init(struct t113_usbdev_s *priv)
 
   /* Enable HS negotiation */
 
-  musb_clrbits8(MUSB_POWER, MUSB_POWER_SOFTCONN);
+  musb_clrbits8(MUSB_POWER, MUSB_POWER_ISOUPDATE);
   musb_setbits8(MUSB_POWER, MUSB_POWER_HSENAB);
 
   musb_putreg8(MUSB_INTR_SUSPEND | MUSB_INTR_RESUME | MUSB_INTR_RESET,
@@ -2442,7 +2447,7 @@ static int t113_pullup(struct usbdev_s *dev, bool enable)
  ****************************************************************************/
 
 /****************************************************************************
- * Name: t113_usb_hw_init
+ * Name: arm_usbinitialize
  *
  * Description:
  *   Initialize USB hardware (CCU, PHY, MUSB).
@@ -2451,7 +2456,7 @@ static int t113_pullup(struct usbdev_s *dev, bool enable)
  *
  ****************************************************************************/
 
-void t113_usb_hw_init(void)
+void arm_usbinitialize(void)
 {
   struct t113_usbdev_s *priv = &g_usbdev;
   int i;
@@ -2526,18 +2531,20 @@ void t113_usb_hw_init(void)
   t113_phy_init();
   t113_musb_init(priv);
 
-  priv->ep0state = EP0STATE_IDLE;
-  priv->attached = true;
-}
-
-void arm_usbinitialize(void)
-{
-  struct t113_usbdev_s *priv = &g_usbdev;
-
   irq_attach(T113_IRQ_USB0_DEVICE, t113_usbdev_interrupt, priv);
   up_enable_irq(T113_IRQ_USB0_DEVICE);
 
+#ifdef CONFIG_CDCACM
+  {
+    extern int cdcacm_initialize(int minor, FAR void **handle);
+    cdcacm_initialize(0, NULL);
+  }
+#endif
+
   musb_setbits8(MUSB_POWER, MUSB_POWER_SOFTCONN);
+
+  priv->ep0state = EP0STATE_IDLE;
+  priv->attached = true;
 }
 
 /****************************************************************************

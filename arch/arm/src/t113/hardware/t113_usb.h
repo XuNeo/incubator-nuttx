@@ -85,6 +85,7 @@
 
 /* MUSB_POWER bits */
 
+#define MUSB_POWER_ISOUPDATE    (1 << 7)
 #define MUSB_POWER_SOFTCONN     (1 << 6)
 #define MUSB_POWER_HSENAB       (1 << 5)
 #define MUSB_POWER_HSMODE       (1 << 4)
