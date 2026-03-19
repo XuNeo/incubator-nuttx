@@ -1482,6 +1482,11 @@ static void t113_musb_reset(struct t113_usbdev_s *priv)
 
   /* Notify class driver of disconnect */
 
+  musb_putreg16(1, MUSB_INTRTXE);
+  musb_putreg16(0, MUSB_INTRRXE);
+  musb_putreg8(MUSB_INTR_SUSPEND | MUSB_INTR_RESUME | MUSB_INTR_RESET,
+               MUSB_INTRUSBE);
+
   if (priv->driver != NULL)
     {
       CLASS_DISCONNECT(priv->driver, &priv->usbdev);
@@ -2521,8 +2526,6 @@ void t113_usb_hw_init(void)
   t113_phy_init();
   t113_musb_init(priv);
 
-  musb_setbits8(MUSB_POWER, MUSB_POWER_SOFTCONN);
-
   priv->ep0state = EP0STATE_IDLE;
   priv->attached = true;
 }
@@ -2533,6 +2536,8 @@ void arm_usbinitialize(void)
 
   irq_attach(T113_IRQ_USB0_DEVICE, t113_usbdev_interrupt, priv);
   up_enable_irq(T113_IRQ_USB0_DEVICE);
+
+  musb_setbits8(MUSB_POWER, MUSB_POWER_SOFTCONN);
 }
 
 /****************************************************************************
