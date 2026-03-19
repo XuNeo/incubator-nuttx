@@ -56,7 +56,6 @@ struct t113_dma_config_s
   uint8_t  dst_burst;     /* Destination burst length */
   bool     src_linear;    /* true=linear (memory), false=IO (peripheral) */
   bool     dst_linear;    /* true=linear (memory), false=IO (peripheral) */
-  uint8_t  wait_cyc;      /* Wait cycles between packets (0-255) */
 };
 
 /****************************************************************************
