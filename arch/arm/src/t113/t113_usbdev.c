@@ -1855,6 +1855,8 @@ static void t113_musb_init(struct t113_usbdev_s *priv)
   musb_putreg16(1, MUSB_INTRTXE);
   musb_putreg16(0, MUSB_INTRRXE);
 
+  musb_setbits8(MUSB_POWER, MUSB_POWER_SOFTCONN);
+
   priv->ep0state = EP0STATE_IDLE;
   priv->attached = true;
 
@@ -2611,7 +2613,19 @@ int usbdev_register(struct usbdevclass_driver_s *driver)
 
   usb_trace_info("usbdev_register: class driver bound\n");
 
-  musb_setbits8(MUSB_POWER, MUSB_POWER_SOFTCONN);
+  /* Force USB re-enumeration: disconnect then reconnect.
+   * Must use putreg32 because 8-bit writes to MUSB_POWER
+   * are ignored in task context on T113.
+   */
+
+  {
+    uint32_t pwr = musb_getreg32(MUSB_POWER & ~3u);
+    pwr &= ~(uint32_t)MUSB_POWER_SOFTCONN;
+    musb_putreg32(pwr, MUSB_POWER & ~3u);
+    up_mdelay(500);
+    pwr |= (uint32_t)MUSB_POWER_SOFTCONN;
+    musb_putreg32(pwr, MUSB_POWER & ~3u);
+  }
 
   return OK;
 }

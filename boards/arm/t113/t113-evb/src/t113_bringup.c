@@ -120,6 +120,13 @@ int t113_bringup(void)
 
 #ifdef CONFIG_T113_USBDEV
   arm_usbinitialize();
+#ifdef CONFIG_CDCACM
+  ret = cdcacm_initialize(0, NULL);
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "cdcacm_initialize failed: %d\n", ret);
+    }
+#endif
 #endif
 
   return ret;
