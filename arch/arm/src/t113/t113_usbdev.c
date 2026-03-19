@@ -1399,92 +1399,23 @@ static void t113_musb_reset(struct t113_usbdev_s *priv)
 {
   int i;
 
-  usb_trace_info("USB bus reset\n");
-
-  /* Set address to 0 */
-
   musb_putreg8(0, MUSB_FADDR);
   priv->paddr = 0;
   priv->paddrset = false;
-
-  /* Reset EP0 state */
-
   priv->ep0state = EP0STATE_IDLE;
   priv->ep0datlen = 0;
   priv->ep0reqlen = 0;
-
-  /* Cancel all pending requests */
 
   for (i = 0; i < T113_NLOGEP; i++)
     {
       t113_cancelrequests(&priv->eplist[i], -ECONNRESET);
     }
 
-  /* Determine speed */
+  priv->usbdev.speed = USB_SPEED_FULL;
 
-  if (musb_getreg8(MUSB_POWER) & MUSB_POWER_HSMODE)
-    {
-      priv->usbdev.speed = USB_SPEED_HIGH;
-    }
-  else
-    {
-      priv->usbdev.speed = USB_SPEED_FULL;
-    }
-
-  /* Re-configure FIFO for all endpoints */
-
-  for (i = 0; i < (int)NFIFOCONFIGS; i++)
-    {
-      const struct t113_fifoconfig_s *cfg = &g_fifoconfig[i];
-      uint8_t fifosz;
-
-      t113_ep_select(cfg->epno);
-
-      if (cfg->epno == 0)
-        {
-          /* EP0 FIFO is fixed, just flush */
-
-          musb_putreg16(MUSB_CSR0_FLUSHFIFO, MUSB_CSR0);
-          continue;
-        }
-
-      fifosz = cfg->fifosz;
-      if (cfg->dpb)
-        {
-          fifosz |= 0x10;  /* DPB bit */
-        }
-
-      if (cfg->is_in)
-        {
-          musb_putreg16(MUSB_TXCSR_FLUSHFIFO | MUSB_TXCSR_CLRDATATOG,
-                        MUSB_TXCSR);
-          musb_putreg16(MUSB_TXCSR_FLUSHFIFO | MUSB_TXCSR_CLRDATATOG,
-                        MUSB_TXCSR);
-          musb_putreg16(0, MUSB_TXMAXP);
-          musb_putreg8(fifosz, MUSB_TXFIFOSZ);
-          musb_putreg16(FIFO_ADDR(cfg->addr), MUSB_TXFIFOADD);
-        }
-      else
-        {
-          musb_putreg16(MUSB_RXCSR_FLUSHFIFO | MUSB_RXCSR_CLRDATATOG,
-                        MUSB_RXCSR);
-          musb_putreg16(MUSB_RXCSR_FLUSHFIFO | MUSB_RXCSR_CLRDATATOG,
-                        MUSB_RXCSR);
-          musb_putreg16(0, MUSB_RXMAXP);
-          musb_putreg8(fifosz, MUSB_RXFIFOSZ);
-          musb_putreg16(FIFO_ADDR(cfg->addr), MUSB_RXFIFOADD);
-        }
-    }
-
-  /* Enable EP0 TX interrupt */
+  t113_ep_select(0);
 
   musb_putreg16(1, MUSB_INTRTXE);
-  musb_putreg16(0, MUSB_INTRRXE);
-
-  /* Notify class driver of disconnect */
-
-  musb_putreg16(1, MUSB_INTRTXE);
-  musb_putreg16(0, MUSB_INTRRXE);
   musb_putreg8(MUSB_INTR_SUSPEND | MUSB_INTR_RESUME | MUSB_INTR_RESET,
                MUSB_INTRUSBE);
 
@@ -1591,12 +1522,16 @@ static int t113_usbdev_interrupt(int irq, void *context, void *arg)
 
   /* Handle EP0 (TX interrupt bit 0) */
 
-  if (txintr & 1)
-    {
-      t113_ep0_setup(priv);
-      g_usb_ep0_count++;
-      g_usb_ep0_state = priv->ep0state;
-    }
+  t113_ep_select(0);
+  {
+    uint16_t csr0 = musb_getreg16(MUSB_CSR0);
+    if ((txintr & 1) || (csr0 & MUSB_CSR0_RXPKTRDY))
+      {
+        t113_ep0_setup(priv);
+        g_usb_ep0_count++;
+        g_usb_ep0_state = priv->ep0state;
+      }
+  }
 
   /* Handle EPn TX complete (bits 1-4) */
 
@@ -1782,7 +1717,7 @@ static void t113_phy_init(void)
 
 static void t113_musb_init(struct t113_usbdev_s *priv)
 {
-  /* usbc_udc_disable: clear all interrupts and SOFTCONN */
+  int i;
 
   musb_putreg8(0, MUSB_INTRUSBE);
   musb_putreg16(0, MUSB_INTRTXE);
@@ -1793,6 +1728,50 @@ static void t113_musb_init(struct t113_usbdev_s *priv)
   musb_clrbits8(MUSB_POWER, MUSB_POWER_SOFTCONN);
 
   musb_putreg8(0, MUSB_FADDR);
+
+  for (i = 0; i < (int)NFIFOCONFIGS; i++)
+    {
+      const struct t113_fifoconfig_s *cfg = &g_fifoconfig[i];
+      uint8_t fifosz;
+
+      t113_ep_select(cfg->epno);
+
+      if (cfg->epno == 0)
+        {
+          musb_putreg16(MUSB_CSR0_FLUSHFIFO, MUSB_CSR0);
+          continue;
+        }
+
+      fifosz = cfg->fifosz;
+      if (cfg->dpb)
+        {
+          fifosz |= 0x10;
+        }
+
+      if (cfg->is_in)
+        {
+          musb_putreg16(MUSB_TXCSR_FLUSHFIFO | MUSB_TXCSR_CLRDATATOG,
+                        MUSB_TXCSR);
+          musb_putreg16(MUSB_TXCSR_FLUSHFIFO | MUSB_TXCSR_CLRDATATOG,
+                        MUSB_TXCSR);
+          musb_putreg16(cfg->size, MUSB_TXMAXP);
+          musb_putreg8(fifosz, MUSB_TXFIFOSZ);
+          musb_putreg16(FIFO_ADDR(cfg->addr), MUSB_TXFIFOADD);
+        }
+      else
+        {
+          musb_putreg16(MUSB_RXCSR_FLUSHFIFO | MUSB_RXCSR_CLRDATATOG,
+                        MUSB_RXCSR);
+          musb_putreg16(MUSB_RXCSR_FLUSHFIFO | MUSB_RXCSR_CLRDATATOG,
+                        MUSB_RXCSR);
+          musb_putreg16(cfg->size, MUSB_RXMAXP);
+          musb_putreg8(fifosz, MUSB_RXFIFOSZ);
+          musb_putreg16(FIFO_ADDR(cfg->addr), MUSB_RXFIFOADD);
+        }
+    }
+
+  t113_ep_select(0);
+
   priv->ep0state = EP0STATE_IDLE;
   priv->attached = true;
 }
