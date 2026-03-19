@@ -226,18 +226,6 @@ volatile uint32_t g_usb_class_ret;
 volatile uint32_t g_usb_ep0_submit;
 volatile uint32_t g_usb_ep0_txpktrdy;
 volatile uint32_t g_usb_ep0_csr0;
-volatile uint32_t g_usb_isr_csr0_raw;
-volatile uint32_t g_usb_isr_txintr_raw;
-volatile uint32_t g_usb_isr_ep0_check;
-volatile uint32_t g_usb_isr_word80;
-volatile uint32_t g_usb_isr_word88;
-volatile uint32_t g_usb_isr_word40;
-volatile uint32_t g_usb_ccu_post_rxcount;
-volatile uint32_t g_usb_init_post_rxcount;
-volatile uint32_t g_usb_isr_w80;
-volatile uint32_t g_usb_isr_w84;
-volatile uint32_t g_usb_isr_w88;
-volatile uint32_t g_usb_isr_w8c;
 
 /* EP0 state machine */
 
@@ -1065,22 +1053,6 @@ static void t113_ep0_setup(struct t113_usbdev_s *priv)
   g_usb_setup_req = ctrl.req;
   g_usb_setup_value = GETUINT16(ctrl.value);
   g_usb_setup_len = GETUINT16(ctrl.len);
-  if (ctrl.req == USB_REQ_GETDESCRIPTOR)
-    {
-      g_usb_isr_w80++;
-    }
-
-  if (ctrl.req == USB_REQ_SETADDRESS)
-    {
-      g_usb_isr_w84++;
-    }
-
-  usb_trace_info("SETUP: type=0x%02x req=0x%02x val=0x%04x "
-                 "idx=0x%04x len=0x%04x\n",
-                 ctrl.type, ctrl.req,
-                 GETUINT16(ctrl.value),
-                 GETUINT16(ctrl.index),
-                 GETUINT16(ctrl.len));
 
   priv->ep0datlen = 0;
   priv->ep0reqlen = GETUINT16(ctrl.len);
@@ -1621,7 +1593,6 @@ static int t113_usbdev_interrupt(int irq, void *context, void *arg)
     uint16_t csr0 = musb_getreg16(MUSB_CSR0);
 
     g_usb_ep0_csr0 = csr0;
-    g_usb_isr_ep0_check++;
 
     if ((csr0 & (MUSB_CSR0_RXPKTRDY | MUSB_CSR0_SENTSTALL |
                  MUSB_CSR0_SETUPEND)) ||
@@ -1684,10 +1655,6 @@ static void t113_ccu_init(void)
   up_mdelay(2);
 }
 
-volatile uint32_t g_usb_ccu_post_rxcount;
-volatile uint32_t g_usb_ccu_post_csr0;
-volatile uint32_t g_usb_init_post_rxcount;
-
 /****************************************************************************
  * Name: t113_phy_init
  *
@@ -1720,7 +1687,8 @@ static void t113_phy_init(void)
   reg |= USB_ISCR_FORCE_VBUS_HIGH;
   phy_putreg32(reg, USBPHY_ISCR);
 
-  phy_setbits32(USBPHY_ISCR, (1 << 16) | (1 << 17));
+  phy_setbits32(USBPHY_ISCR,
+                USB_ISCR_DPDM_PULLUP_EN | USB_ISCR_ID_PULLUP_EN);
 
   /* Clear change detect again */
 
@@ -1740,68 +1708,14 @@ static void t113_phy_init(void)
 
   musb_writeb(0, MUSB_VEND0);
 
-#if 0 /* Skip VC bus calibration — FEL already did it */
+#if 0
+  /* VC bus calibration: T113 PHY does not allow re-calibration after
+   * BROM has programmed VC bus registers.  Writing ADDR/DATA bits a
+   * second time corrupts MUSB CSR0 readability.  BROM FEL performs
+   * calibration during boot so PHY is already calibrated.
+   */
 
-  {
-    uint32_t phyctl;
-    int j;
-
-    /* Write 0xC = 0x01 (enable calibration, 1 bit) */
-
-    static const struct
-    {
-      uint8_t addr;
-      uint8_t data;
-      uint8_t len;
-    } vc_seq[] =
-    {
-      { 0x0c, 0x01, 1 },
-      { 0x20, 0x03, 2 },
-      { 0x03, 0x00, 2 },
-    };
-
-    int s;
-
-    for (s = 0; s < 3; s++)
-      {
-        uint8_t dtmp = vc_seq[s].data;
-
-        phyctl = phy_getreg32(USBPHY_PHYCTL28NM);
-        phyctl |= (1 << 1);
-        phy_putreg32(phyctl, USBPHY_PHYCTL28NM);
-
-        for (j = 0; j < vc_seq[s].len; j++)
-          {
-            phyctl = phy_getreg32(USBPHY_PHYCTL28NM);
-            phyctl &= ~(1 << 0);
-            phy_putreg32(phyctl, USBPHY_PHYCTL28NM);
-
-            phyctl = phy_getreg32(USBPHY_PHYCTL28NM);
-            phyctl &= ~(0xff << 8);
-            phyctl |= ((vc_seq[s].addr + j) << 8);
-            phy_putreg32(phyctl, USBPHY_PHYCTL28NM);
-
-            phyctl = phy_getreg32(USBPHY_PHYCTL28NM);
-            phyctl &= ~(1 << 7);
-            phyctl |= ((dtmp & 0x01) << 7);
-            phy_putreg32(phyctl, USBPHY_PHYCTL28NM);
-
-            phyctl |= (1 << 0);
-            phy_putreg32(phyctl, USBPHY_PHYCTL28NM);
-
-            phyctl &= ~(1 << 0);
-            phy_putreg32(phyctl, USBPHY_PHYCTL28NM);
-
-            dtmp >>= 1;
-          }
-
-        phyctl = phy_getreg32(USBPHY_PHYCTL28NM);
-        phyctl &= ~(1 << 1);
-        phy_putreg32(phyctl, USBPHY_PHYCTL28NM);
-      }
-  }
-
-  phy_putreg32(USB_PHYCTL28NM_VBUSVLDEXT, USBPHY_PHYCTL28NM);
+  ...calibration code...
 #endif
 
   up_mdelay(1);
