@@ -1701,6 +1701,69 @@ static void t113_phy_init(void)
 
   musb_putreg8(0, MUSB_VEND0);
 
+  /* PHY calibration via VC bus (bit-bang through PHYCTL28NM register).
+   * Without this calibration, MUSB POWER.SOFTCONN cannot be written.
+   */
+
+  {
+    uint32_t phyctl;
+    int j;
+
+    /* Write 0xC = 0x01 (enable calibration, 1 bit) */
+
+    static const struct
+    {
+      uint8_t addr;
+      uint8_t data;
+      uint8_t len;
+    } vc_seq[] =
+    {
+      { 0x0c, 0x01, 1 },
+      { 0x20, 0x03, 2 },
+      { 0x03, 0x00, 2 },
+    };
+
+    int s;
+
+    for (s = 0; s < 3; s++)
+      {
+        uint8_t dtmp = vc_seq[s].data;
+
+        phyctl = phy_getreg32(USBPHY_PHYCTL28NM);
+        phyctl |= (1 << 1);
+        phy_putreg32(phyctl, USBPHY_PHYCTL28NM);
+
+        for (j = 0; j < vc_seq[s].len; j++)
+          {
+            phyctl = phy_getreg32(USBPHY_PHYCTL28NM);
+            phyctl &= ~(1 << 0);
+            phy_putreg32(phyctl, USBPHY_PHYCTL28NM);
+
+            phyctl = phy_getreg32(USBPHY_PHYCTL28NM);
+            phyctl &= ~(0xff << 8);
+            phyctl |= ((vc_seq[s].addr + j) << 8);
+            phy_putreg32(phyctl, USBPHY_PHYCTL28NM);
+
+            phyctl = phy_getreg32(USBPHY_PHYCTL28NM);
+            phyctl &= ~(1 << 7);
+            phyctl |= ((dtmp & 0x01) << 7);
+            phy_putreg32(phyctl, USBPHY_PHYCTL28NM);
+
+            phyctl |= (1 << 0);
+            phy_putreg32(phyctl, USBPHY_PHYCTL28NM);
+
+            phyctl &= ~(1 << 0);
+            phy_putreg32(phyctl, USBPHY_PHYCTL28NM);
+
+            dtmp >>= 1;
+          }
+
+        phyctl = phy_getreg32(USBPHY_PHYCTL28NM);
+        phyctl &= ~(1 << 1);
+        phy_putreg32(phyctl, USBPHY_PHYCTL28NM);
+      }
+  }
+
   up_mdelay(1);
 }
 
@@ -2361,13 +2424,11 @@ static int t113_pullup(struct usbdev_s *dev, bool enable)
   regval = musb_getreg32(MUSB_POWER & ~3);
   if (enable)
     {
-      regval |= MUSB_POWER_SOFTCONN;
-      musb_putreg32(regval, MUSB_POWER & ~3);
+      putreg32(0x60, MUSB_BASE + MUSB_POWER);
     }
   else
     {
-      regval &= ~MUSB_POWER_SOFTCONN;
-      musb_putreg32(regval, MUSB_POWER & ~3);
+      putreg32(0x20, MUSB_BASE + MUSB_POWER);
     }
 
   return OK;
