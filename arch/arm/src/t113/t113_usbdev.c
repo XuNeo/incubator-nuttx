@@ -288,6 +288,7 @@ static int  t113_usbdev_interrupt(int irq, void *context, void *arg);
 static void t113_ccu_init(void);
 static void t113_phy_init(void);
 static void t113_musb_init(struct t113_usbdev_s *priv);
+static void t113_musb_enable(void);
 static void t113_musb_reset(struct t113_usbdev_s *priv);
 
 /* Endpoint operations (usbdev_epops_s) */
@@ -1636,16 +1637,6 @@ static void t113_ccu_init(void)
 {
   uint32_t reg;
 
-  reg = getreg32(T113_CCU_USB_BGR);
-  reg &= ~(USB_BGR_OTG0_RST | USB_BGR_OTG0_GATING);
-  putreg32(reg, T113_CCU_USB_BGR);
-  up_mdelay(10);
-
-  reg = getreg32(T113_CCU_USB0_CLK);
-  reg &= ~USB0_CLK_PHYRST_DEASSERT;
-  putreg32(reg, T113_CCU_USB0_CLK);
-  up_mdelay(10);
-
   reg = getreg32(T113_CCU_USB0_CLK);
   reg |= USB0_CLK_PHYRST_DEASSERT;
   putreg32(reg, T113_CCU_USB0_CLK);
@@ -1654,7 +1645,7 @@ static void t113_ccu_init(void)
   reg |= USB_BGR_OTG0_RST | USB_BGR_OTG0_GATING;
   putreg32(reg, T113_CCU_USB_BGR);
 
-  up_mdelay(10);
+  up_mdelay(2);
 }
 
 /****************************************************************************
@@ -1791,84 +1782,32 @@ static void t113_phy_init(void)
 
 static void t113_musb_init(struct t113_usbdev_s *priv)
 {
-  int i;
+  /* usbc_udc_disable: clear all interrupts and SOFTCONN */
 
   musb_putreg8(0, MUSB_INTRUSBE);
   musb_putreg16(0, MUSB_INTRTXE);
   musb_putreg16(0, MUSB_INTRRXE);
-
   musb_putreg16(0xffff, MUSB_INTRTX);
   musb_putreg16(0xffff, MUSB_INTRRX);
   musb_putreg8(0xff, MUSB_INTRUSB);
-
-  musb_putreg8(0, MUSB_POWER);
+  musb_clrbits8(MUSB_POWER, MUSB_POWER_SOFTCONN);
 
   musb_putreg8(0, MUSB_FADDR);
+  priv->ep0state = EP0STATE_IDLE;
+  priv->attached = true;
+}
 
-  /* Configure FIFO for all endpoints */
-
-  for (i = 0; i < (int)NFIFOCONFIGS; i++)
-    {
-      const struct t113_fifoconfig_s *cfg = &g_fifoconfig[i];
-      uint8_t fifosz;
-
-      t113_ep_select(cfg->epno);
-
-      if (cfg->epno == 0)
-        {
-          /* EP0 has a fixed 64-byte FIFO, just flush */
-
-          musb_putreg16(MUSB_CSR0_FLUSHFIFO, MUSB_CSR0);
-          continue;
-        }
-
-      fifosz = cfg->fifosz;
-      if (cfg->dpb)
-        {
-          fifosz |= 0x10;  /* DPB bit */
-        }
-
-      if (cfg->is_in)
-        {
-          /* Flush TX FIFO and clear data toggle */
-
-          musb_putreg16(MUSB_TXCSR_FLUSHFIFO | MUSB_TXCSR_CLRDATATOG,
-                        MUSB_TXCSR);
-          musb_putreg16(MUSB_TXCSR_FLUSHFIFO | MUSB_TXCSR_CLRDATATOG,
-                        MUSB_TXCSR);
-          musb_putreg16(0, MUSB_TXMAXP);
-          musb_putreg8(fifosz, MUSB_TXFIFOSZ);
-          musb_putreg16(FIFO_ADDR(cfg->addr), MUSB_TXFIFOADD);
-        }
-      else
-        {
-          /* Flush RX FIFO and clear data toggle */
-
-          musb_putreg16(MUSB_RXCSR_FLUSHFIFO | MUSB_RXCSR_CLRDATATOG,
-                        MUSB_RXCSR);
-          musb_putreg16(MUSB_RXCSR_FLUSHFIFO | MUSB_RXCSR_CLRDATATOG,
-                        MUSB_RXCSR);
-          musb_putreg16(0, MUSB_RXMAXP);
-          musb_putreg8(fifosz, MUSB_RXFIFOSZ);
-          musb_putreg16(FIFO_ADDR(cfg->addr), MUSB_RXFIFOADD);
-        }
-    }
-
-  /* Enable HS negotiation */
+static void t113_musb_enable(void)
+{
+  /* usbc_udc_enable: configure and set SOFTCONN */
 
   musb_clrbits8(MUSB_POWER, MUSB_POWER_ISOUPDATE);
-  musb_setbits8(MUSB_POWER, MUSB_POWER_HSENAB);
 
   musb_putreg8(MUSB_INTR_SUSPEND | MUSB_INTR_RESUME | MUSB_INTR_RESET,
                MUSB_INTRUSBE);
-
   musb_putreg16(1, MUSB_INTRTXE);
-  musb_putreg16(0, MUSB_INTRRXE);
 
-  priv->ep0state = EP0STATE_IDLE;
-  priv->attached = true;
-
-  usb_trace_info("MUSB init complete, SOFTCONN enabled\n");
+  musb_setbits8(MUSB_POWER, MUSB_POWER_SOFTCONN);
 }
 
 /****************************************************************************
@@ -2425,18 +2364,15 @@ static int t113_selfpowered(struct usbdev_s *dev, bool selfpowered)
 
 static int t113_pullup(struct usbdev_s *dev, bool enable)
 {
-  uint32_t regval;
-
   UNUSED(dev);
 
-  regval = musb_getreg32(MUSB_POWER & ~3);
   if (enable)
     {
-      putreg32(0x60, MUSB_BASE + MUSB_POWER);
+      musb_setbits8(MUSB_POWER, MUSB_POWER_SOFTCONN);
     }
   else
     {
-      putreg32(0x20, MUSB_BASE + MUSB_POWER);
+      musb_clrbits8(MUSB_POWER, MUSB_POWER_SOFTCONN);
     }
 
   return OK;
@@ -2472,7 +2408,7 @@ void arm_usbinitialize(void)
   priv->usbdev.ops = &g_devops;
   priv->usbdev.ep0 = &priv->eplist[T113_EP0_IN].ep;
   priv->usbdev.speed = USB_SPEED_FULL;
-  priv->usbdev.dualspeed = 1;
+  priv->usbdev.dualspeed = 0;
 
   /* Initialize all endpoint structures */
 
@@ -2541,10 +2477,7 @@ void arm_usbinitialize(void)
   }
 #endif
 
-  musb_setbits8(MUSB_POWER, MUSB_POWER_SOFTCONN);
-
-  priv->ep0state = EP0STATE_IDLE;
-  priv->attached = true;
+  t113_musb_enable();
 }
 
 /****************************************************************************
