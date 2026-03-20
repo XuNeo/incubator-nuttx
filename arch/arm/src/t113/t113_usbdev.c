@@ -1865,8 +1865,6 @@ static void t113_musb_enable(void)
   musb_writeb(MUSB_INTR_SUSPEND | MUSB_INTR_RESUME | MUSB_INTR_RESET,
               MUSB_INTRUSBE);
   musb_putreg16(1, MUSB_INTRTXE);
-
-  musb_writeb(musb_readb(MUSB_POWER) | MUSB_POWER_SOFTCONN, MUSB_POWER);
 }
 
 /****************************************************************************
@@ -2527,7 +2525,7 @@ void arm_usbinitialize(void)
   irq_attach(T113_IRQ_USB0_DEVICE, t113_usbdev_interrupt, priv);
   up_enable_irq(T113_IRQ_USB0_DEVICE);
 
-#if !defined(CONFIG_USBDEV_COMPOSITE) && !defined(CONFIG_CDCACM_CONSOLE)
+#ifndef CONFIG_USBDEV_COMPOSITE
 #ifdef CONFIG_CDCACM
   extern int cdcacm_initialize(int minor, FAR void **handle);
   cdcacm_initialize(0, NULL);
