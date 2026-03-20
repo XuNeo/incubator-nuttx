@@ -1037,14 +1037,6 @@ static void t113_ep0_setup(struct t113_usbdev_s *priv)
     }
 
   t113_fifo_read(0, (uint8_t *)&ctrl, USB_SIZEOF_CTRLREQ);
-  musb_putreg16(MUSB_CSR0_SVDRXPKTRDY, MUSB_CSR0);
-  {
-    uint16_t post = musb_getreg16(MUSB_CSR0);
-    if (post & MUSB_CSR0_RXPKTRDY)
-      {
-        g_usb_ep0_txpktrdy++;
-      }
-  }
 
   memcpy(&priv->ep0ctrl, &ctrl, USB_SIZEOF_CTRLREQ);
 
@@ -1617,6 +1609,7 @@ static int t113_usbdev_interrupt(int irq, void *context, void *arg)
       if (txintr & (1 << i))
         {
           t113_epn_txdone(priv, i);
+          musb_putreg16(1 << i, MUSB_INTRTX);
         }
     }
 
@@ -1627,6 +1620,7 @@ static int t113_usbdev_interrupt(int irq, void *context, void *arg)
       if (rxintr & (1 << i))
         {
           t113_epn_rxready(priv, i);
+          musb_putreg16(1 << i, MUSB_INTRRX);
         }
     }
 
@@ -2651,7 +2645,7 @@ int usbdev_register(struct usbdevclass_driver_s *driver)
   usb_trace_info("usbdev_register: class driver bound\n");
 
   musb_writeb(musb_readb(MUSB_POWER) & ~MUSB_POWER_SOFTCONN, MUSB_POWER);
-  up_mdelay(2000);
+  up_mdelay(200);
   musb_writeb(musb_readb(MUSB_POWER) | MUSB_POWER_SOFTCONN, MUSB_POWER);
 
   return OK;
