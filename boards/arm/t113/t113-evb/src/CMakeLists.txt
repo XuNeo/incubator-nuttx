@@ -26,6 +26,10 @@ if(CONFIG_BOARDCTL)
   list(APPEND SRCS t113_appinit.c)
 endif()
 
+if(CONFIG_USBDEV_COMPOSITE)
+  list(APPEND SRCS t113_composite.c)
+endif()
+
 target_sources(board PRIVATE ${SRCS})
 
 set_property(GLOBAL PROPERTY LD_SCRIPT "${NUTTX_BOARD_DIR}/scripts/sdram.ld.S")

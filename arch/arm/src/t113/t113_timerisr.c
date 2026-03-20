@@ -36,6 +36,11 @@
 #include <arch/irq.h>
 #include <arch/armv7-a/cp15.h>
 
+#ifdef CONFIG_SCHED_TICKLESS
+#  include <nuttx/timers/arch_alarm.h>
+#  include "arm_timer.h"
+#endif
+
 /****************************************************************************
  * Pre-processor Definitions
  ****************************************************************************/
@@ -47,21 +52,15 @@
  * Private Data
  ****************************************************************************/
 
+#ifndef CONFIG_SCHED_TICKLESS
 static uint32_t g_timer_reload;
+#endif
 
 /****************************************************************************
  * Private Functions
  ****************************************************************************/
 
-/****************************************************************************
- * Name: t113_timerisr
- *
- * Description:
- *   The timer ISR will perform a variety of services for various portions
- *   of the systems.
- *
- ****************************************************************************/
-
+#ifndef CONFIG_SCHED_TICKLESS
 static int t113_timerisr(int irq, void *context, void *arg)
 {
   CP15_SET(CNTP_CTL, 0);
@@ -70,27 +69,22 @@ static int t113_timerisr(int irq, void *context, void *arg)
   nxsched_process_timer();
   return OK;
 }
+#endif
 
 /****************************************************************************
  * Public Functions
  ****************************************************************************/
 
-/****************************************************************************
- * Function:  up_timer_initialize
- *
- * Description:
- *   This function is called during start-up to initialize
- *   the timer interrupt.  Uses the ARMv7-A generic timer (CNTP).
- *
- ****************************************************************************/
-
 void up_timer_initialize(void)
 {
+  CP15_SET(CNTFRQ, T113_CNTFRQ);
+
+#ifdef CONFIG_SCHED_TICKLESS
+  up_alarm_set_lowerhalf(arm_timer_initialize(0));
+#else
   uint32_t cntfrq;
 
-  CP15_SET(CNTFRQ, T113_CNTFRQ);
   cntfrq = CP15_GET(CNTFRQ);
-
   g_timer_reload = cntfrq / CONFIG_USEC_PER_TICK;
 
   up_disable_irq(GIC_IRQ_SEC_PHY_TIMER);
@@ -98,4 +92,5 @@ void up_timer_initialize(void)
   CP15_SET(CNTP_TVAL, g_timer_reload);
   CP15_SET(CNTP_CTL, 1);
   up_enable_irq(GIC_IRQ_SEC_PHY_TIMER);
+#endif
 }

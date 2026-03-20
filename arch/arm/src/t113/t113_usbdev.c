@@ -995,6 +995,7 @@ static void t113_ep0_setup(struct t113_usbdev_s *priv)
             break;
 
           case EP0STATE_WAIT_STATUS_IN:
+
             /* Status phase complete, apply pending address if needed */
 
             if (priv->paddrset)
@@ -1021,7 +1022,6 @@ static void t113_ep0_setup(struct t113_usbdev_s *priv)
   t113_fifo_read(0, (uint8_t *)&ctrl, USB_SIZEOF_CTRLREQ);
 
   memcpy(&priv->ep0ctrl, &ctrl, USB_SIZEOF_CTRLREQ);
-
 
   priv->ep0datlen = 0;
   priv->ep0reqlen = GETUINT16(ctrl.len);
@@ -1509,7 +1509,6 @@ static int t113_usbdev_interrupt(int irq, void *context, void *arg)
   txintr  = musb_getreg16(MUSB_INTRTX);
   rxintr  = musb_getreg16(MUSB_INTRRX);
 
-
   if (usbintr)
     {
       musb_writeb(usbintr, MUSB_INTRUSB);
@@ -1553,22 +1552,20 @@ static int t113_usbdev_interrupt(int irq, void *context, void *arg)
   /* Handle EP0 */
 
   t113_ep_select(0);
-  {
-    uint16_t csr0 = musb_getreg16(MUSB_CSR0);
 
+  uint16_t csr0 = musb_getreg16(MUSB_CSR0);
 
-    if ((csr0 & (MUSB_CSR0_RXPKTRDY | MUSB_CSR0_SENTSTALL |
-                 MUSB_CSR0_SETUPEND)) ||
-        (priv->ep0state != EP0STATE_IDLE))
-      {
-        t113_ep0_setup(priv);
-      }
+  if ((csr0 & (MUSB_CSR0_RXPKTRDY | MUSB_CSR0_SENTSTALL |
+               MUSB_CSR0_SETUPEND)) ||
+      (priv->ep0state != EP0STATE_IDLE))
+    {
+      t113_ep0_setup(priv);
+    }
 
-    if (txintr & 1)
-      {
-        musb_putreg16(1, MUSB_INTRTX);
-      }
-  }
+  if (txintr & 1)
+    {
+      musb_putreg16(1, MUSB_INTRTX);
+    }
 
   /* Handle EPn TX complete (bits 1-4) */
 
@@ -2517,16 +2514,14 @@ void arm_usbinitialize(void)
   irq_attach(T113_IRQ_USB0_DEVICE, t113_usbdev_interrupt, priv);
   up_enable_irq(T113_IRQ_USB0_DEVICE);
 
+#ifndef CONFIG_USBDEV_COMPOSITE
 #ifdef CONFIG_CDCACM
-  {
-    extern int cdcacm_initialize(int minor, FAR void **handle);
-    cdcacm_initialize(0, NULL);
-  }
+  extern int cdcacm_initialize(int minor, FAR void **handle);
+  cdcacm_initialize(0, NULL);
 #elif defined(CONFIG_USBADB)
-  {
-    extern FAR void *usbdev_adb_initialize(void);
-    usbdev_adb_initialize();
-  }
+  extern FAR void *usbdev_adb_initialize(void);
+  usbdev_adb_initialize();
+#endif
 #endif
 
   t113_musb_enable();
