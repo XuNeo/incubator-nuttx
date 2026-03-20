@@ -1502,9 +1502,9 @@ static void t113_musb_reset(struct t113_usbdev_s *priv)
 
   priv->usbdev.speed = USB_SPEED_FULL;
 
-  musb_putreg16(0, MUSB_INTRTXE);
-  musb_writeb(MUSB_INTR_SUSPEND | MUSB_INTR_RESUME | MUSB_INTR_RESET |
-              MUSB_INTR_SOF, MUSB_INTRUSBE);
+  musb_putreg16(1, MUSB_INTRTXE);
+  musb_writeb(MUSB_INTR_SUSPEND | MUSB_INTR_RESUME | MUSB_INTR_RESET,
+              MUSB_INTRUSBE);
 
   if (priv->driver != NULL)
     {
@@ -1603,6 +1603,11 @@ static int t113_usbdev_interrupt(int irq, void *context, void *arg)
         g_usb_ep0_count++;
         g_usb_ep0_state = priv->ep0state;
       }
+
+    if (txintr & 1)
+      {
+        musb_putreg16(1, MUSB_INTRTX);
+      }
   }
 
   /* Handle EPn TX complete (bits 1-4) */
@@ -1643,16 +1648,115 @@ static void t113_ccu_init(void)
   uint32_t reg;
 
   reg = getreg32(T113_CCU_USB_BGR);
-  reg &= ~(USB_BGR_EHCI0_RST | USB_BGR_OHCI0_RST |
+  reg &= ~(USB_BGR_OTG0_RST | USB_BGR_EHCI0_RST |
+            USB_BGR_OHCI0_RST | USB_BGR_OTG0_GATING |
             USB_BGR_EHCI0_GATING | USB_BGR_OHCI0_GATING);
-  reg |= USB_BGR_OTG0_RST | USB_BGR_OTG0_GATING;
   putreg32(reg, T113_CCU_USB_BGR);
+
+  up_mdelay(5);
 
   reg = getreg32(T113_CCU_USB0_CLK);
   reg |= USB0_CLK_PHYRST_DEASSERT;
   putreg32(reg, T113_CCU_USB0_CLK);
 
+  reg = getreg32(T113_CCU_USB_BGR);
+  reg |= USB_BGR_OTG0_RST | USB_BGR_OTG0_GATING;
+  putreg32(reg, T113_CCU_USB_BGR);
+
   up_mdelay(2);
+}
+
+static int phy_vc_bit_offset(uint32_t mask)
+{
+  int i;
+
+  for (i = 0; i < 32; i++)
+    {
+      if (mask & (1u << i))
+        {
+          return i;
+        }
+    }
+
+  return 0;
+}
+
+static void phy_vc_write(int addr, int data, int len)
+{
+  uint32_t phyctl;
+  int j;
+
+  phyctl = phy_getreg32(USBPHY_PHYCTL28NM);
+  phyctl |= USB_PHYCTL28NM_VC_EN;
+  phy_putreg32(phyctl, USBPHY_PHYCTL28NM);
+
+  for (j = 0; j < len; j++)
+    {
+      phyctl = phy_getreg32(USBPHY_PHYCTL28NM);
+      phyctl &= ~USB_PHYCTL28NM_VC_CLK;
+      phy_putreg32(phyctl, USBPHY_PHYCTL28NM);
+
+      phyctl = phy_getreg32(USBPHY_PHYCTL28NM);
+      phyctl &= ~USB_PHYCTL28NM_VC_ADDR;
+      phyctl |= ((addr + j) << 8);
+      phy_putreg32(phyctl, USBPHY_PHYCTL28NM);
+
+      phyctl = phy_getreg32(USBPHY_PHYCTL28NM);
+      phyctl &= ~USB_PHYCTL28NM_VC_DI;
+      phyctl |= ((data & 0x01) << 7);
+      phy_putreg32(phyctl, USBPHY_PHYCTL28NM);
+
+      phyctl |= USB_PHYCTL28NM_VC_CLK;
+      phy_putreg32(phyctl, USBPHY_PHYCTL28NM);
+
+      phyctl &= ~USB_PHYCTL28NM_VC_CLK;
+      phy_putreg32(phyctl, USBPHY_PHYCTL28NM);
+
+      data >>= 1;
+    }
+
+  phyctl = phy_getreg32(USBPHY_PHYCTL28NM);
+  phyctl &= ~USB_PHYCTL28NM_VC_EN;
+  phy_putreg32(phyctl, USBPHY_PHYCTL28NM);
+}
+
+static void t113_phy_efuse_calibrate(void)
+{
+  uint32_t efuse;
+  int mode;
+  int res;
+  int val;
+
+  efuse = getreg32(USB_PHY_EFUSE_ADDR);
+  if (!(efuse & USB_PHY_EFUSE_ADJUST))
+    {
+      return;
+    }
+
+  mode = (efuse & USB_PHY_EFUSE_MODE) ?
+         USB_VCPHY_IREF_MODE : USB_VCPHY_VERF_MODE;
+  phy_vc_write(USB_VCPHY_MODE, mode, 1);
+
+  res = (efuse & USB_PHY_EFUSE_RES) >>
+        phy_vc_bit_offset(USB_PHY_EFUSE_RES);
+  phy_vc_write(0x43, 0x0, 1);
+  phy_vc_write(0x41, 0x0, 1);
+  phy_vc_write(0x40, 0x0, 1);
+  phy_vc_write(USB_VCPHY_TRAN_SOFT_RES, res, 4);
+  phy_vc_write(0x43, 0x1, 1);
+
+  val = (efuse & USB_PHY_EFUSE_VERF_COMMON) >>
+        phy_vc_bit_offset(USB_PHY_EFUSE_VERF_COMMON);
+  if (mode == USB_VCPHY_VERF_MODE)
+    {
+      phy_vc_write(USB_VCPHY_COMM_VREF_RISE, val, 3);
+    }
+  else
+    {
+      phy_vc_write(USB_VCPHY_TRAN_IREF_RISE, val, 3);
+    }
+
+  phy_putreg32(USB_PHYCTL28NM_VBUSVLDEXT, USBPHY_PHYCTL28NM);
 }
 
 /****************************************************************************
@@ -1708,15 +1812,7 @@ static void t113_phy_init(void)
 
   musb_writeb(0, MUSB_VEND0);
 
-#if 0
-  /* VC bus calibration: T113 PHY does not allow re-calibration after
-   * BROM has programmed VC bus registers.  Writing ADDR/DATA bits a
-   * second time corrupts MUSB CSR0 readability.  BROM FEL performs
-   * calibration during boot so PHY is already calibrated.
-   */
-
-  ...calibration code...
-#endif
+  t113_phy_efuse_calibrate();
 
   up_mdelay(1);
 }
@@ -1794,9 +1890,9 @@ static void t113_musb_enable(void)
 {
   musb_writeb(musb_readb(MUSB_POWER) & ~MUSB_POWER_ISOUPDATE, MUSB_POWER);
 
-  musb_writeb(MUSB_INTR_SUSPEND | MUSB_INTR_RESUME | MUSB_INTR_RESET |
-              MUSB_INTR_SOF, MUSB_INTRUSBE);
-  musb_putreg16(0, MUSB_INTRTXE);
+  musb_writeb(MUSB_INTR_SUSPEND | MUSB_INTR_RESUME | MUSB_INTR_RESET,
+              MUSB_INTRUSBE);
+  musb_putreg16(1, MUSB_INTRTXE);
 
   musb_writeb(musb_readb(MUSB_POWER) | MUSB_POWER_SOFTCONN, MUSB_POWER);
 }

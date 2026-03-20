@@ -172,14 +172,36 @@
 #define USB_ISCR_FORCE_VBUS_MASK 0x3000
 #define USB_ISCR_FORCE_VBUS_HIGH 0x3000
 
-/* USB_PHYCTL28NM bits */
+/* USB_PHYCTL28NM bits (also used as VC bus control register) */
 
 #define USB_PHYCTL28NM_SIDDQ      (1 << 3)
 #define USB_PHYCTL28NM_VBUSVLDEXT (1 << 5)
+#define USB_PHYCTL28NM_VC_CLK     (1 << 0)
+#define USB_PHYCTL28NM_VC_EN      (1 << 1)
+#define USB_PHYCTL28NM_VC_DI      (1 << 7)
+#define USB_PHYCTL28NM_VC_ADDR    (0xff << 8)
 
 /* USB_PHYSEL bits */
 
 #define USB_PHYSEL_OTG_SEL      (1 << 0)
+
+/* EFUSE calibration */
+
+#define USB_PHY_EFUSE_ADDR        0x03006218
+#define USB_PHY_EFUSE_ADJUST      (1 << 16)
+#define USB_PHY_EFUSE_MODE        (1 << 17)
+#define USB_PHY_EFUSE_RES         (0xf << 18)
+#define USB_PHY_EFUSE_VERF_COMMON (0x7 << 22)
+#define USB_PHY_EFUSE_IREF_USB0TX (0x7 << 22)
+
+/* VC bus internal PHY register addresses */
+
+#define USB_VCPHY_MODE            0x60
+#define USB_VCPHY_VERF_MODE       0
+#define USB_VCPHY_IREF_MODE       1
+#define USB_VCPHY_COMM_VREF_RISE  0x36
+#define USB_VCPHY_TRAN_IREF_RISE  0x61
+#define USB_VCPHY_TRAN_SOFT_RES   0x44
 
 /* IRQ numbers */
 
