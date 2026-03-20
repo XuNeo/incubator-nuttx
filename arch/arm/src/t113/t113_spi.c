@@ -238,13 +238,13 @@ static void spi_clock_enable(struct t113_spidev_s *priv)
   int i;
   int bit = (priv->base == T113_SPI0_BASE) ? 0 : 1;
   uint32_t clk_reg = (priv->base == T113_SPI0_BASE) ?
-                     T113_CCU_SPI0_CLK_REG : T113_CCU_SPI1_CLK_REG;
+                     T113_CCU_SPI0_CLK : T113_CCU_SPI1_CLK;
 
   /* 1. Deassert SPI reset (SPI_BGR_REG bit16/17) */
 
-  reg = getreg32(T113_CCU_SPI_BGR_REG);
+  reg = getreg32(T113_CCU_SPI_BGR);
   reg |= (1 << (16 + bit));
-  putreg32(reg, T113_CCU_SPI_BGR_REG);
+  putreg32(reg, T113_CCU_SPI_BGR);
 
   /* 2. Open SPI_CLK gate (SPI_CLK_REG bit31) */
 
@@ -254,9 +254,9 @@ static void spi_clock_enable(struct t113_spidev_s *priv)
 
   /* 3. Open SPI bus gate (SPI_BGR_REG bit0/1) */
 
-  reg = getreg32(T113_CCU_SPI_BGR_REG);
+  reg = getreg32(T113_CCU_SPI_BGR);
   reg |= (1 << bit);
-  putreg32(reg, T113_CCU_SPI_BGR_REG);
+  putreg32(reg, T113_CCU_SPI_BGR);
 
   /* 4. Select PLL_PERI(1X) as clock source (bits26:24 = 001) */
 

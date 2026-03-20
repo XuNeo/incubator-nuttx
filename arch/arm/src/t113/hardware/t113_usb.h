@@ -18,11 +18,7 @@
 #define T113_USB_OTG_BASE       0x04100000
 #define T113_USB_PHY_BASE       (T113_USB_OTG_BASE + 0x0400)
 
-/* CCU USB registers */
-
-#define T113_CCU_BASE           0x02001000
-#define T113_CCU_USB0_CLK       (T113_CCU_BASE + 0x0a70)
-#define T113_CCU_USB_BGR        (T113_CCU_BASE + 0x0a8c)
+#include "t113_ccu.h"
 
 /* USB0_CLK_REG bits */
 

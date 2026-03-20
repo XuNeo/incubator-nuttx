@@ -28,6 +28,7 @@
  ****************************************************************************/
 
 #include <nuttx/config.h>
+#include "t113_ccu.h"
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -35,10 +36,6 @@
 
 #define T113_DMAC_BASE        0x03002000
 #define T113_DMAC_NCHANNELS   16
-
-#define T113_CCU_BASE         0x02001000
-#define T113_CCU_DMA_BGR      (T113_CCU_BASE + 0x070c)
-#define T113_CCU_MBUS_MAT     (T113_CCU_BASE + 0x0804)
 
 /* Global registers */
 

@@ -28,6 +28,7 @@
  ****************************************************************************/
 
 #include <nuttx/config.h>
+#include "t113_ccu.h"
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -88,8 +89,6 @@
 #define TWI_STAT_DATA_R_NAK    0x58
 #define TWI_STAT_IDLE          0xf8
 
-/* CCU TWI clock gate */
 
-#define T113_CCU_TWI_BGR_REG   0x0200191c
 
 #endif /* __ARCH_ARM_SRC_T113_HARDWARE_T113_I2C_H */

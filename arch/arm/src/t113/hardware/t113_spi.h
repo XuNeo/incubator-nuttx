@@ -28,6 +28,7 @@
  ****************************************************************************/
 
 #include <nuttx/config.h>
+#include "t113_ccu.h"
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -115,11 +116,5 @@
 /* SPI FIFO depth */
 
 #define SPI_FIFO_DEPTH    64
-
-/* SPI CCU clock gate */
-
-#define T113_CCU_SPI_BGR_REG  0x0200196c  /* SPI Bus Gating Reset */
-#define T113_CCU_SPI0_CLK_REG 0x02001940  /* SPI0 clock source/divider */
-#define T113_CCU_SPI1_CLK_REG 0x02001944  /* SPI1 clock source/divider */
 
 #endif /* __ARCH_ARM_SRC_T113_HARDWARE_T113_SPI_H */

@@ -208,18 +208,18 @@ static void twi_clock_enable(struct t113_i2cdev_s *priv)
       bit = 3;
     }
 
-  reg = getreg32(T113_CCU_TWI_BGR_REG);
+  reg = getreg32(T113_CCU_TWI_BGR);
   reg &= ~(1 << (16 + bit));
-  putreg32(reg, T113_CCU_TWI_BGR_REG);
+  putreg32(reg, T113_CCU_TWI_BGR);
   for (i = 0; i < 100; i++);
   reg |= (1 << (16 + bit));
-  putreg32(reg, T113_CCU_TWI_BGR_REG);
+  putreg32(reg, T113_CCU_TWI_BGR);
 
   reg &= ~(1 << bit);
-  putreg32(reg, T113_CCU_TWI_BGR_REG);
+  putreg32(reg, T113_CCU_TWI_BGR);
   for (i = 0; i < 100; i++);
   reg |= (1 << bit);
-  putreg32(reg, T113_CCU_TWI_BGR_REG);
+  putreg32(reg, T113_CCU_TWI_BGR);
 }
 
 static void twi_send_start(struct t113_i2cdev_s *priv)
