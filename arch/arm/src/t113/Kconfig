@@ -104,6 +104,14 @@ config T113_USBDEV
 		Enable T113 MUSB OTG USB device controller driver.
 		Supports CDC-ACM and ADB over USB in device mode.
 
+config T113_WDT
+	bool "Watchdog Timer"
+	default n
+	select WATCHDOG
+	select ARCH_HAVE_RESET
+	---help---
+		Enable T113 watchdog timer driver.
+
 endmenu # Allwinner T113 Peripheral Support
 
 config T113_DDR_MAPSIZE

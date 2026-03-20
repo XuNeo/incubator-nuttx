@@ -20,7 +20,7 @@
 #
 # ##############################################################################
 
-set(SRCS t113_boot.c t113_irq.c t113_lowputc.c t113_serial.c)
+set(SRCS t113_boot.c t113_irq.c t113_lowputc.c t113_serial.c t113_idle.c)
 
 if(NOT CONFIG_SCHED_TICKLESS)
   list(APPEND SRCS t113_timerisr.c)
@@ -54,6 +54,10 @@ endif()
 
 if(CONFIG_T113_USBDEV)
   list(APPEND SRCS t113_usbdev.c)
+endif()
+
+if(CONFIG_T113_WDT)
+  list(APPEND SRCS t113_wdt.c)
 endif()
 
 target_sources(arch PRIVATE ${SRCS})
