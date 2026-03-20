@@ -210,22 +210,6 @@ static inline uint32_t musb_getreg32(uint32_t off)
 
 /* Debug trace variables — read via JLink mem32 */
 
-volatile uint32_t g_usb_irq_count;
-volatile uint32_t g_usb_last_usbintr;
-volatile uint32_t g_usb_last_txintr;
-volatile uint32_t g_usb_last_rxintr;
-volatile uint32_t g_usb_reset_count;
-volatile uint32_t g_usb_ep0_count;
-volatile uint32_t g_usb_ep0_rxpktrdy;
-volatile uint32_t g_usb_ep0_state;
-volatile uint32_t g_usb_setup_type;
-volatile uint32_t g_usb_setup_req;
-volatile uint32_t g_usb_setup_value;
-volatile uint32_t g_usb_setup_len;
-volatile uint32_t g_usb_class_ret;
-volatile uint32_t g_usb_ep0_submit;
-volatile uint32_t g_usb_ep0_txpktrdy;
-volatile uint32_t g_usb_ep0_csr0;
 
 /* EP0 state machine */
 
@@ -751,7 +735,6 @@ static void t113_ep0_transmit(struct t113_usbdev_s *priv,
 static void t113_ep0_dispatch(struct t113_usbdev_s *priv)
 {
   int ret;
-  g_usb_class_ret = 0xdead;
 
   if (priv->driver == NULL)
     {
@@ -760,7 +743,6 @@ static void t113_ep0_dispatch(struct t113_usbdev_s *priv)
 
   ret = CLASS_SETUP(priv->driver, &priv->usbdev,
                     &priv->ep0ctrl, priv->ep0buf, priv->ep0datlen);
-  g_usb_class_ret = (uint32_t)ret;
   if (ret < 0)
     {
       /* Stall EP0 on error */
@@ -1040,11 +1022,6 @@ static void t113_ep0_setup(struct t113_usbdev_s *priv)
 
   memcpy(&priv->ep0ctrl, &ctrl, USB_SIZEOF_CTRLREQ);
 
-  g_usb_ep0_rxpktrdy++;
-  g_usb_setup_type = ctrl.type;
-  g_usb_setup_req = ctrl.req;
-  g_usb_setup_value = GETUINT16(ctrl.value);
-  g_usb_setup_len = GETUINT16(ctrl.len);
 
   priv->ep0datlen = 0;
   priv->ep0reqlen = GETUINT16(ctrl.len);
@@ -1532,10 +1509,6 @@ static int t113_usbdev_interrupt(int irq, void *context, void *arg)
   txintr  = musb_getreg16(MUSB_INTRTX);
   rxintr  = musb_getreg16(MUSB_INTRRX);
 
-  g_usb_irq_count++;
-  g_usb_last_usbintr = usbintr;
-  g_usb_last_txintr = txintr;
-  g_usb_last_rxintr = rxintr;
 
   if (usbintr)
     {
@@ -1551,7 +1524,6 @@ static int t113_usbdev_interrupt(int irq, void *context, void *arg)
   if (usbintr & MUSB_INTR_RESET)
     {
       t113_musb_reset(priv);
-      g_usb_reset_count++;
     }
 
   /* Handle suspend */
@@ -1584,16 +1556,12 @@ static int t113_usbdev_interrupt(int irq, void *context, void *arg)
   {
     uint16_t csr0 = musb_getreg16(MUSB_CSR0);
 
-    g_usb_ep0_csr0 = csr0;
 
     if ((csr0 & (MUSB_CSR0_RXPKTRDY | MUSB_CSR0_SENTSTALL |
                  MUSB_CSR0_SETUPEND)) ||
         (priv->ep0state != EP0STATE_IDLE))
       {
-        g_usb_ep0_rxpktrdy++;
         t113_ep0_setup(priv);
-        g_usb_ep0_count++;
-        g_usb_ep0_state = priv->ep0state;
       }
 
     if (txintr & 1)
@@ -2084,7 +2052,6 @@ static int t113_epsubmit(struct usbdev_ep_s *ep,
 
   req->result = -EINPROGRESS;
   req->xfrd   = 0;
-  g_usb_ep0_submit++;
 
   flags = up_irq_save();
 
@@ -2104,7 +2071,6 @@ static int t113_epsubmit(struct usbdev_ep_s *ep,
               priv->ep0state == EP0STATE_DATA_IN)
             {
               uint16_t xfrlen = req->len;
-              g_usb_ep0_submit++;
 
               if (xfrlen > EP0_MAXPACKET)
                 {
@@ -2126,8 +2092,6 @@ static int t113_epsubmit(struct usbdev_ep_s *ep,
                 {
                   musb_putreg16(MUSB_CSR0_TXPKTRDY |
                                 MUSB_CSR0_DATAEND, MUSB_CSR0);
-                  g_usb_ep0_txpktrdy++;
-                  g_usb_ep0_csr0 = musb_getreg16(MUSB_CSR0);
                   priv->ep0state = EP0STATE_WAIT_STATUS_OUT;
 
                   privreq = t113_rqdequeue(privep);
