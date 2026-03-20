@@ -44,6 +44,7 @@
 #include <nuttx/usb/usbdev_trace.h>
 
 #include "arm_internal.h"
+#include <arch/barriers.h>
 #include "hardware/t113_usb.h"
 
 /****************************************************************************
