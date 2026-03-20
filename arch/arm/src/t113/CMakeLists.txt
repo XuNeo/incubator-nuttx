@@ -60,4 +60,22 @@ if(CONFIG_T113_WDT)
   list(APPEND SRCS t113_wdt.c)
 endif()
 
+list(APPEND SRCS t113_systemreset.c)
+
+if(CONFIG_T113_GPIO)
+  list(APPEND SRCS t113_gpio.c)
+endif()
+
+if(CONFIG_T113_RTC)
+  list(APPEND SRCS t113_rtc.c)
+endif()
+
+if(CONFIG_T113_PWM)
+  list(APPEND SRCS t113_pwm.c)
+endif()
+
+if(CONFIG_T113_GPADC)
+  list(APPEND SRCS t113_adc.c)
+endif()
+
 target_sources(arch PRIVATE ${SRCS})

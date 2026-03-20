@@ -209,8 +209,3 @@ void t113_wdt_initialize(void)
                     (struct watchdog_lowerhalf_s *)&g_wdt);
 }
 
-void board_reset(int status)
-{
-  putreg32(WDOG_SOFT_RST_KEY | 1, WDOG_SOFT_RST_REG);
-  for (; ; );
-}

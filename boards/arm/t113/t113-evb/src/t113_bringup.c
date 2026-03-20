@@ -53,6 +53,18 @@ extern FAR struct mtd_dev_s *mx35_initialize(FAR struct spi_dev_s *dev);
 #  include <nuttx/usb/usbdev.h>
 #endif
 
+#ifdef CONFIG_T113_RTC
+void t113_rtc_initialize(void);
+#endif
+
+#ifdef CONFIG_T113_PWM
+void t113_pwm_initialize(int channel);
+#endif
+
+#ifdef CONFIG_T113_GPADC
+void t113_adc_initialize(void);
+#endif
+
 #include "t113-evb.h"
 
 /****************************************************************************
@@ -62,6 +74,18 @@ extern FAR struct mtd_dev_s *mx35_initialize(FAR struct spi_dev_s *dev);
 int t113_bringup(void)
 {
   int ret = 0;
+
+#ifdef CONFIG_T113_RTC
+  t113_rtc_initialize();
+#endif
+
+#ifdef CONFIG_T113_PWM
+  t113_pwm_initialize(0);
+#endif
+
+#ifdef CONFIG_T113_GPADC
+  t113_adc_initialize();
+#endif
 
 #if defined(CONFIG_T113_SPI0) && defined(CONFIG_MTD_MX35)
   FAR struct spi_dev_s *spi;

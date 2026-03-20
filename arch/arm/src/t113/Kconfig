@@ -112,6 +112,36 @@ config T113_WDT
 	---help---
 		Enable T113 watchdog timer driver.
 
+config T113_GPIO
+	bool "GPIO (PIO Controller)"
+	default n
+	---help---
+		Enable T113 GPIO driver for banks B-G.
+
+config T113_RTC
+	bool "RTC (Real-Time Clock)"
+	default n
+	select RTC
+	select RTC_DRIVER
+	select RTC_DATETIME
+	---help---
+		Enable T113 RTC driver.  Uses the on-chip LOSC-based
+		RTC with YMD/HMS registers.
+
+config T113_PWM
+	bool "PWM Controller"
+	default n
+	select PWM
+	---help---
+		Enable T113 PWM driver.  8 channels, 24MHz HOSC clock source.
+
+config T113_GPADC
+	bool "GPADC (General Purpose ADC)"
+	default n
+	select ADC
+	---help---
+		Enable T113 12-bit GPADC driver.  Up to 4 channels.
+
 endmenu # Allwinner T113 Peripheral Support
 
 config T113_DDR_MAPSIZE
