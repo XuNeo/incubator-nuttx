@@ -1469,7 +1469,14 @@ static void t113_musb_reset(struct t113_usbdev_s *priv)
       t113_cancelrequests(&priv->eplist[i], -ECONNRESET);
     }
 
-  priv->usbdev.speed = USB_SPEED_FULL;
+  if (musb_readb(MUSB_POWER) & MUSB_POWER_HSMODE)
+    {
+      priv->usbdev.speed = USB_SPEED_HIGH;
+    }
+  else
+    {
+      priv->usbdev.speed = USB_SPEED_FULL;
+    }
 
   musb_putreg16(1, MUSB_INTRTXE);
   musb_writeb(MUSB_INTR_SUSPEND | MUSB_INTR_RESUME | MUSB_INTR_RESET,
@@ -1847,7 +1854,12 @@ static void t113_musb_init(struct t113_usbdev_s *priv)
 
 static void t113_musb_enable(void)
 {
-  musb_writeb(musb_readb(MUSB_POWER) & ~MUSB_POWER_ISOUPDATE, MUSB_POWER);
+  uint8_t power;
+
+  power = musb_readb(MUSB_POWER);
+  power &= ~MUSB_POWER_ISOUPDATE;
+  power |= MUSB_POWER_HSENAB;
+  musb_writeb(power, MUSB_POWER);
 
   musb_writeb(MUSB_INTR_SUSPEND | MUSB_INTR_RESUME | MUSB_INTR_RESET,
               MUSB_INTRUSBE);
@@ -2452,7 +2464,7 @@ void arm_usbinitialize(void)
   priv->usbdev.ops = &g_devops;
   priv->usbdev.ep0 = &priv->eplist[T113_EP0_IN].ep;
   priv->usbdev.speed = USB_SPEED_FULL;
-  priv->usbdev.dualspeed = 0;
+  priv->usbdev.dualspeed = 1;
 
   /* Initialize all endpoint structures */
 
