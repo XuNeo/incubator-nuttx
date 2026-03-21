@@ -30,10 +30,6 @@
 #include <debug.h>
 #include <errno.h>
 
-#ifdef CONFIG_CDCACM
-#  include <nuttx/usb/cdcacm.h>
-#endif
-
 #ifdef CONFIG_T113_SPI0
 #  include <nuttx/spi/spi.h>
 #  include "t113_spi.h"
@@ -47,10 +43,6 @@ extern FAR struct mtd_dev_s *mx35_initialize(FAR struct spi_dev_s *dev);
 #ifdef CONFIG_T113_TWI0
 #  include <nuttx/i2c/i2c_master.h>
 #  include "t113_i2c.h"
-#endif
-
-#ifdef CONFIG_T113_USBDEV
-#  include <nuttx/usb/usbdev.h>
 #endif
 
 #ifdef CONFIG_T113_RTC

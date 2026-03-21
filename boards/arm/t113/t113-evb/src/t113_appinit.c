@@ -31,6 +31,10 @@
 #ifdef CONFIG_BOARDCTL
 int board_app_initialize(uintptr_t arg)
 {
+#ifdef CONFIG_BOARD_LATE_INITIALIZE
+  return 0;
+#else
   return t113_bringup();
+#endif
 }
 #endif

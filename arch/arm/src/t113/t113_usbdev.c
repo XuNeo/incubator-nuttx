@@ -2525,7 +2525,7 @@ void arm_usbinitialize(void)
   irq_attach(T113_IRQ_USB0_DEVICE, t113_usbdev_interrupt, priv);
   up_enable_irq(T113_IRQ_USB0_DEVICE);
 
-#ifndef CONFIG_USBDEV_COMPOSITE
+#if !defined(CONFIG_USBDEV_COMPOSITE) && !defined(CONFIG_CDCACM_CONSOLE)
 #ifdef CONFIG_CDCACM
   extern int cdcacm_initialize(int minor, FAR void **handle);
   cdcacm_initialize(0, NULL);
