@@ -225,6 +225,10 @@ static ssize_t mx35_read(FAR struct mtd_dev_s *dev,
                          off_t offset,
                          size_t nbytes,
                          FAR uint8_t *buffer);
+static ssize_t mx35_bread(FAR struct mtd_dev_s *dev, off_t startblock,
+                          size_t nblocks, FAR uint8_t *buffer);
+static ssize_t mx35_bwrite(FAR struct mtd_dev_s *dev, off_t startblock,
+                           size_t nblocks, FAR const uint8_t *buffer);
 
 static void mx35_write_to_cache(FAR struct mx35_dev_s *priv,
                                 uint32_t address,
@@ -381,8 +385,13 @@ static bool mx35_waitstatus(FAR struct mx35_dev_s *priv,
        * erasing could take more.  The following short delay in the "busy"
        * case will allow other peripherals to access the SPI bus.
        */
-    }
-  while (((status & MX35_SR_OIP) != 0) && (!nxsched_usleep(1000)));
+
+      if ((status & MX35_SR_OIP) != 0)
+        {
+          nxsched_usleep(1000);
+        }
+     }
+  while ((status & MX35_SR_OIP) != 0);
 
   mx35info("Complete\n");
   return successif ? ((status & mask) != 0) : ((status & mask) == 0);
@@ -490,10 +499,6 @@ static bool mx35_sectorerase(FAR struct mx35_dev_s *priv, off_t startsector)
 {
   off_t address = (off_t)startsector << priv->sectorshift;
   const uint32_t block = mx35_addresstorow(priv, address);
-
-  mx35info("sector: %08lx\n", (long)startsector);
-
-  /* Send write enable instruction */
 
   mx35_writeenable(priv);
 
@@ -772,8 +777,44 @@ static ssize_t mx35_write(FAR struct mtd_dev_s *dev,
   return nbytes - bytesleft;
 }
 
+static ssize_t mx35_bread(FAR struct mtd_dev_s *dev, off_t startblock,
+                          size_t nblocks, FAR uint8_t *buffer)
+{
+  FAR struct mx35_dev_s *priv = (FAR struct mx35_dev_s *)dev;
+  ssize_t nbytes;
+
+  nbytes = mx35_read(dev,
+                     startblock << priv->pageshift,
+                     nblocks << priv->pageshift,
+                     buffer);
+  if (nbytes > 0)
+    {
+      return nbytes >> priv->pageshift;
+    }
+
+  return nbytes;
+}
+
+static ssize_t mx35_bwrite(FAR struct mtd_dev_s *dev, off_t startblock,
+                           size_t nblocks, FAR const uint8_t *buffer)
+{
+  FAR struct mx35_dev_s *priv = (FAR struct mx35_dev_s *)dev;
+  ssize_t nbytes;
+
+  nbytes = mx35_write(dev,
+                      startblock << priv->pageshift,
+                      nblocks << priv->pageshift,
+                      (FAR uint8_t *)buffer);
+  if (nbytes > 0)
+    {
+      return nbytes >> priv->pageshift;
+    }
+
+  return nbytes;
+}
+
 /****************************************************************************
- * Name: mx25l_ioctl
+ * Name: mx35_ioctl
  ****************************************************************************/
 
 static int mx35_ioctl(FAR struct mtd_dev_s *dev, int cmd, unsigned long arg)
@@ -951,6 +992,8 @@ FAR struct mtd_dev_s *mx35_initialize(FAR struct spi_dev_s *dev)
        */
 
       priv->mtd.erase  = mx35_erase;
+      priv->mtd.bread  = mx35_bread;
+      priv->mtd.bwrite = mx35_bwrite;
       priv->mtd.read   = mx35_read;
       priv->mtd.write  = mx35_write;
       priv->mtd.ioctl  = mx35_ioctl;

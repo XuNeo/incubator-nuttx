@@ -1,0 +1,178 @@
+/****************************************************************************
+ * arch/arm/src/t113/hardware/t113_memorymap.h
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * Based on vendor/allwinnertech/chips/r528/hardware/r528_memorymap.h
+ * T113-S3 and R528 are the same silicon — addresses are identical.
+ *
+ ****************************************************************************/
+
+#ifndef __ARCH_ARM_SRC_T113_HARDWARE_T113_MEMORYMAP_H
+#define __ARCH_ARM_SRC_T113_HARDWARE_T113_MEMORYMAP_H
+
+#include <nuttx/config.h>
+
+#define __CONCAT(a,b) a ## b
+#define MKULONG(a) __CONCAT(a,ul)
+
+/* T113-S3 physical section base addresses (1MB aligned) */
+
+#define T113_SRAM_PSECTION  0x00000000
+#define T113_SP0_PSECTION     0x02000000
+#define T113_SP1_PSECTION     0x02500000
+#define T113_SH0_PSECTION     0x03000000
+#define T113_SH2_PSECTION     0x04000000
+#define T113_PERIPH_PSECTION  0x05000000
+#define T113_APBS0_PSECTION   0x07000000
+#define T113_CPUX_PSECTION    0x08100000
+#define T113_DRAM_PSECTION    0x40000000
+#define T113_BROM_PSECTION    0x00000000
+
+/* Offsets */
+
+#define T113_SRAMA1_OFFSET    0x00020000
+#define T113_CCMU_OFFSET      0x00001000
+#define T113_UART0_OFFSET     0x00000000
+#define T113_UART1_OFFSET     0x00000400
+#define T113_UART2_OFFSET     0x00000800
+#define T113_UART3_OFFSET     0x00000C00
+#define T113_GIC_OFFSET       0x00020000
+
+/* Sizes */
+
+#define T113_SRAM_SIZE      0x00100000
+#define T113_SP0_SIZE         0x00100000
+#define T113_SP1_SIZE         0x00100000
+#define T113_SH0_SIZE         0x00400000
+#define T113_SH2_SIZE         0x00600000
+#define T113_PERIPH_SIZE      0x00700000
+#define T113_APBS0_SIZE       0x00100000
+#define T113_CPUX_SIZE        0x01000000
+#define T113_BROM_SIZE        0x0000c000
+
+#define T113_DDR_MAPSIZE      MKULONG(CONFIG_T113_DDR_MAPSIZE)
+
+#define _NSECTIONS(b)         (((b)+0x000fffff) >> 20)
+
+#define T113_SRAM_NSECTIONS _NSECTIONS(T113_SRAM_SIZE)
+#define T113_SP0_NSECTIONS    _NSECTIONS(T113_SP0_SIZE)
+#define T113_SP1_NSECTIONS    _NSECTIONS(T113_SP1_SIZE)
+#define T113_SH0_NSECTIONS    _NSECTIONS(T113_SH0_SIZE)
+#define T113_SH2_NSECTIONS    _NSECTIONS(T113_SH2_SIZE)
+#define T113_PERIPH_NSECTIONS _NSECTIONS(T113_PERIPH_SIZE)
+#define T113_APBS0_NSECTIONS  _NSECTIONS(T113_APBS0_SIZE)
+#define T113_CPUX_NSECTIONS   _NSECTIONS(T113_CPUX_SIZE)
+#define T113_DDR_NSECTIONS    _NSECTIONS(T113_DDR_MAPSIZE)
+
+/* MMU flags */
+
+#define T113_SRAM_MMUFLAGS  MMU_MEMFLAGS
+#define T113_SP0_MMUFLAGS     MMU_IOFLAGS
+#define T113_SP1_MMUFLAGS     MMU_IOFLAGS
+#define T113_SH0_MMUFLAGS     MMU_IOFLAGS
+#define T113_SH2_MMUFLAGS     MMU_IOFLAGS
+#define T113_PERIPH_MMUFLAGS  MMU_IOFLAGS
+#define T113_APBS0_MMUFLAGS   MMU_IOFLAGS
+#define T113_CPUX_MMUFLAGS    MMU_IOFLAGS
+#define T113_DDR_MMUFLAGS     MMU_MEMFLAGS
+#define T113_BROM_MMUFLAGS    MMU_IOFLAGS
+
+/* Physical base addresses */
+
+#define T113_SRAMA1_PADDR     (T113_SRAM_PSECTION + T113_SRAMA1_OFFSET)
+#define T113_UART0_PADDR      (T113_SP1_PSECTION + T113_UART0_OFFSET)
+#define T113_UART1_PADDR      (T113_SP1_PSECTION + T113_UART1_OFFSET)
+#define T113_UART2_PADDR      (T113_SP1_PSECTION + T113_UART2_OFFSET)
+#define T113_UART3_PADDR      (T113_SP1_PSECTION + T113_UART3_OFFSET)
+#define T113_GIC_PADDR        (T113_SH0_PSECTION + T113_GIC_OFFSET)
+#define T113_GIC_DIST_PADDR   (T113_GIC_PADDR + 0x1000)
+#define T113_GIC_CPU_PADDR    (T113_GIC_PADDR + 0x2000)
+
+/* Virtual section base addresses (identity-mapped 1:1) */
+
+#ifndef CONFIG_ARCH_ROMPGTABLE
+#define T113_SRAM_VSECTION  0x00000000
+#define T113_SP0_VSECTION     0x02000000
+#define T113_SP1_VSECTION     0x02500000
+#define T113_SH0_VSECTION     0x03000000
+#define T113_SH2_VSECTION     0x04000000
+#define T113_PERIPH_VSECTION  0x05000000
+#define T113_APBS0_VSECTION   0x07000000
+#define T113_CPUX_VSECTION    0x08100000
+#define T113_DRAM_VSECTION    0x40000000
+#define T113_BROM_VSECTION    0x00000000
+#endif
+
+/* Virtual base addresses */
+
+#define T113_SRAMA1_VADDR     (T113_SRAM_VSECTION + T113_SRAMA1_OFFSET)
+#define T113_UART0_VADDR      (T113_SP1_VSECTION + T113_UART0_OFFSET)
+#define T113_UART1_VADDR      (T113_SP1_VSECTION + T113_UART1_OFFSET)
+#define T113_UART2_VADDR      (T113_SP1_VSECTION + T113_UART2_OFFSET)
+#define T113_UART3_VADDR      (T113_SP1_VSECTION + T113_UART3_OFFSET)
+#define T113_GIC_VADDR        (T113_SH0_VSECTION + T113_GIC_OFFSET)
+#define T113_UART_VADDR(n)    (T113_UART0_VADDR + (n) * 0x400)
+
+/* DDR mapping */
+
+#define T113_DDR_MAPPADDR     T113_DRAM_PSECTION
+#define T113_DDR_MAPVADDR     T113_DRAM_VSECTION
+
+/* GIC base for armv7-a layer */
+
+#define CHIP_MPCORE_VBASE     T113_GIC_VADDR
+
+/* NuttX virtual base address — used by arm_head.S */
+
+#define NUTTX_TEXT_VADDR      (CONFIG_RAM_VSTART & 0xfff00000)
+#define NUTTX_TEXT_PADDR      (CONFIG_RAM_START & 0xfff00000)
+#define NUTTX_TEXT_PEND       ((CONFIG_RAM_END + 0x000fffff) & 0xfff00000)
+#define NUTTX_TEXT_SIZE       (NUTTX_TEXT_PEND - NUTTX_TEXT_PADDR)
+
+/* MMU Page Table in SRAM A1 at offset +0x4000 = 0x00024000
+ * (after the low vectors which occupy the first 16KB of SRAM A1)
+ */
+
+#ifndef CONFIG_ARCH_ROMPGTABLE
+#if defined(PGTABLE_BASE_PADDR) || defined(PGTABLE_BASE_VADDR)
+#  if !defined(PGTABLE_BASE_PADDR) || !defined(PGTABLE_BASE_VADDR)
+#    error "Only one of PGTABLE_BASE_PADDR or PGTABLE_BASE_VADDR is defined"
+#  endif
+#else
+#  define PGTABLE_BASE_PADDR  (T113_SRAMA1_PADDR + 0x4000)
+#  define PGTABLE_BASE_VADDR  (T113_SRAMA1_VADDR + 0x4000)
+#  define ARMV7A_PGTABLE_MAPPING 1
+#endif
+#endif
+
+/* L2 page table for high vector remapping (only when not using low vectors) */
+
+#ifndef CONFIG_ARCH_LOWVECTORS
+#  define VECTOR_L2_OFFSET        0x00000400
+#  define VECTOR_L2_SIZE          0x00000bfc
+#  define VECTOR_L2_PBASE         (PGTABLE_BASE_PADDR + VECTOR_L2_OFFSET)
+#  define VECTOR_L2_VBASE         (PGTABLE_BASE_VADDR + VECTOR_L2_OFFSET)
+#  define VECTOR_L2_END_PADDR     (VECTOR_L2_PBASE + VECTOR_L2_SIZE)
+#  define VECTOR_L2_END_VADDR     (VECTOR_L2_VBASE + VECTOR_L2_SIZE)
+#endif
+
+#define VECTOR_TABLE_SIZE         0x00010000
+#define VECTOR_TABLE_OFFSET       0x00000040
+
+#define T113_VECTOR_PADDR         CONFIG_RAM_START
+#define T113_VECTOR_VSRAM         T113_VECTOR_PADDR
+#define T113_VECTOR_VADDR         0x00000000
+
+/* Paging L2 page table */
+
+#define PGTABLE_L2_START_PADDR    (T113_DRAM_PSECTION + T113_DDR_MAPSIZE)
+#define PGTABLE_BROM_OFFSET       0x3ffc
+#define PGTABLE_L2_OFFSET         ((PGTABLE_L2_START_PADDR >> 18) & ~3)
+#define PGTABLE_L2_SIZE           (PGTABLE_BROM_OFFSET - PGTABLE_L2_OFFSET)
+#define PGTABLE_L2_PBASE          (PGTABLE_BASE_PADDR + PGTABLE_L2_OFFSET)
+#define PGTABLE_L2_VBASE          (PGTABLE_BASE_VADDR + PGTABLE_L2_OFFSET)
+#define PGTABLE_L2_END_PADDR      (PGTABLE_L2_PBASE + PGTABLE_L2_SIZE)
+#define PGTABLE_L2_END_VADDR      (PGTABLE_L2_VBASE + PGTABLE_L2_SIZE)
+
+#endif /* __ARCH_ARM_SRC_T113_HARDWARE_T113_MEMORYMAP_H */
