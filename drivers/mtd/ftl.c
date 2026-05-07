@@ -96,14 +96,24 @@ static ssize_t ftl_reload(FAR void *priv, FAR uint8_t *buffer,
                  off_t startblock, size_t nblocks);
 static ssize_t ftl_read(FAR struct inode *inode, FAR unsigned char *buffer,
                  blkcnt_t start_sector, unsigned int nsectors);
+/* Write-path functions: ftl_write, ftl_flush, ftl_flush_direct,
+ * ftl_mtd_bwrite, ftl_mtd_erase, ftl_mtd_bmove, ftl_update_map.
+ * When MTD_READONLY, g_bops.write = NULL and ftl_write is not
+ * compiled, so LTO eliminates the entire write chain.
+ */
+
 static ssize_t ftl_flush(FAR void *priv, FAR const uint8_t *buffer,
                  off_t startblock, size_t nblocks);
 static ssize_t ftl_flush_direct(FAR struct ftl_struct_s *dev,
                                 FAR const uint8_t *buffer,
                                 off_t startblock, size_t nblocks);
+#ifndef CONFIG_MTD_READONLY
 static ssize_t ftl_write(FAR struct inode *inode,
                  FAR const unsigned char *buffer, blkcnt_t start_sector,
                  unsigned int nsectors);
+#endif
+static int     ftl_mtd_bmove(FAR struct ftl_struct_s *dev,
+                             off_t startblock);
 static int     ftl_geometry(FAR struct inode *inode,
                  FAR struct geometry *geometry);
 static int     ftl_ioctl(FAR struct inode *inode, int cmd,
@@ -121,7 +131,11 @@ static const struct block_operations g_bops =
   ftl_open,     /* open     */
   ftl_close,    /* close    */
   ftl_read,     /* read     */
+#ifdef CONFIG_MTD_READONLY
+  NULL,         /* write    */
+#else
   ftl_write,    /* write    */
+#endif
   ftl_geometry, /* geometry */
   ftl_ioctl     /* ioctl    */
 #ifndef CONFIG_DISABLE_PSEUDOFS_OPERATIONS
@@ -753,6 +767,7 @@ static ssize_t ftl_flush(FAR void *priv, FAR const uint8_t *buffer,
  *
  ****************************************************************************/
 
+#ifndef CONFIG_MTD_READONLY
 static ssize_t ftl_write(FAR struct inode *inode,
                          FAR const unsigned char *buffer,
                          blkcnt_t start_sector, unsigned int nsectors)
@@ -775,6 +790,7 @@ static ssize_t ftl_write(FAR struct inode *inode,
   return ftl_flush(dev, buffer, start_sector, nsectors);
 #endif
 }
+#endif /* !CONFIG_MTD_READONLY */
 
 /****************************************************************************
  * Name: ftl_geometry
