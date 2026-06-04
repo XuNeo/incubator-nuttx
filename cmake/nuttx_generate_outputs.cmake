@@ -42,10 +42,20 @@ function(nuttx_generate_outputs target)
   endif()
 
   if(CONFIG_RAW_BINARY)
-    add_custom_command(
-      OUTPUT ${target}.bin
-      COMMAND ${CMAKE_OBJCOPY} -O binary ${target} ${target}.bin
-      DEPENDS ${target})
+    get_property(_mksunxi GLOBAL PROPERTY T113_MKSUNXI_CMD)
+    if(_mksunxi AND "${target}" STREQUAL "nuttx")
+      add_custom_command(
+        OUTPUT ${target}.bin
+        COMMAND ${CMAKE_OBJCOPY} -O binary ${target} ${target}.bin
+        COMMAND ${_mksunxi} ${CMAKE_BINARY_DIR}/${target}.bin
+        DEPENDS ${target}
+        COMMENT "Generating ${target}.bin + eGON checksum")
+    else()
+      add_custom_command(
+        OUTPUT ${target}.bin
+        COMMAND ${CMAKE_OBJCOPY} -O binary ${target} ${target}.bin
+        DEPENDS ${target})
+    endif()
     add_custom_target(${target}-bin ALL DEPENDS ${target}.bin)
     add_dependencies(nuttx_post ${target}-bin)
     file(APPEND ${CMAKE_BINARY_DIR}/nuttx.manifest "${target}.bin\n")

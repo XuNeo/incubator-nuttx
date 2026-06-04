@@ -94,3 +94,4 @@ SAVEconfig
 .aider*
 imx9-norimage.img
 config.txt
+/build_ap
