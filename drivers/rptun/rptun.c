@@ -1248,6 +1248,14 @@ int rptun_initialize(FAR struct rptun_dev_s *dev)
 
   metal_mutex_acquire(&g_rptun_lock);
   metal_list_add_tail(&g_rptun_priv, &priv->node);
+
+  /* priv (and its embedded rproc) is now permanently live; only here is it
+   * safe to publish the back-pointer to the device.  On every failure path
+   * above, priv is freed and dev->rproc stays NULL, leaving no dangling
+   * reference.
+   */
+
+  priv->dev->rproc = &priv->rproc;
   metal_mutex_release(&g_rptun_lock);
   return OK;
 
