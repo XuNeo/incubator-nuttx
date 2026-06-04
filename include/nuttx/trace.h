@@ -303,4 +303,21 @@
 #  define wireless_trace_printf(...)
 #endif
 
+#ifdef CONFIG_TRACE_USB
+#  define usb_trace_begin() trace_begin(NOTE_TAG_DRIVERS)
+#  define usb_trace_end() trace_end(NOTE_TAG_DRIVERS)
+#  define usb_trace_beginex(name) trace_beginex(NOTE_TAG_DRIVERS, name)
+#  define usb_trace_endex(name) trace_endex(NOTE_TAG_DRIVERS, name)
+#  define usb_trace_mark(s) trace_mark(NOTE_TAG_DRIVERS, s)
+#  define usb_trace_printf(fmt, ...) \
+    trace_printf(NOTE_TAG_DRIVERS, fmt, ##__VA_ARGS__)
+#else
+#  define usb_trace_begin()
+#  define usb_trace_end()
+#  define usb_trace_beginex(name)
+#  define usb_trace_endex(name)
+#  define usb_trace_mark(s)
+#  define usb_trace_printf(...)
+#endif
+
 #endif /* __INCLUDE_NUTTX_TRACE_H */
