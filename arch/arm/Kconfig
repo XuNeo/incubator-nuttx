@@ -60,6 +60,39 @@ config ARM_DECODEFIQ
 		Select this option if your platform supports the function
 		arm_decodefiq().
 
+config BMP
+	bool "Bound Multi-Processing (BMP)"
+	default n
+	depends on ARCH_HAVE_MULTICPU
+	---help---
+		Enables Bound Multi-Processing (BMP) on a multi-CPU platform: each
+		core runs an independent OS image, but a master core releases the
+		secondary cores at boot.  Unlike SMP, there is no shared scheduler
+		across cores.
+
+		This is the backport-compat counterpart to the upstream UP/SMP/BMP
+		multiprocessing model, where BMP coexists with the standalone SMP
+		option.  Only the ARM armv7-a secondary-CPU bring-up logic consumes
+		CONFIG_BMP / CONFIG_UP, so they live here rather than in core
+		sched/Kconfig.
+
+config UP
+	bool
+	default y if !SMP && !BMP
+	---help---
+		Uni-Processor (single core).  Derived backport-compat symbol: it is
+		set automatically when neither SMP nor BMP is selected, matching the
+		upstream multiprocessing model where UP is the default member of a
+		UP/SMP/BMP choice.  Secondary-CPU bring-up code (arm_scu.c,
+		arm_cpuidlestack.c, the __cpuN_start path) is compiled out when
+		CONFIG_UP is set.
+
+		Deliberately has no ARCH_HAVE_MULTICPU dependency: it must default y
+		for every non-SMP/non-BMP armv7-a config, including single-CPU chips
+		(e.g. sama5) that do not select ARCH_HAVE_MULTICPU, so the
+		'if(NOT CONFIG_UP)' build gates stay equivalent to the previous
+		'if(CONFIG_SMP)' gates for them.
+
 choice
 	prompt "ARM MCU selection"
 	default ARCH_CHIP_STM32
