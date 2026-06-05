@@ -42,8 +42,8 @@ int board_usbhost_initialize(void);
 #endif
 
 #ifdef CONFIG_RPTUN_BMP
-/* Provided by t113_rptun_slave.c (CONFIG_T113_RPTUN_SLAVE) or
- * t113_rptun_bmp.c (BMP runtime role); the two are build-time exclusive.
+/* Provided by t113_rptun_slave.c (CONFIG_T113_RPTUN_SLAVE): the AMP slave
+ * (core1) rptun attach on the RPTUN_BMP doorbell transport.
  */
 
 int t113_rptun_init(void);
@@ -59,15 +59,6 @@ int t113_rptun_master_init(void);
 
 #ifdef CONFIG_LCD_GC9503CV_DSI
 int t113_lcd_initialize(void);
-#endif
-
-#ifdef CONFIG_BMP
-/* Declared under CONFIG_SMP in include/nuttx/arch.h; BMP needs it too
- * but doesn't select CONFIG_SMP.  Strong definition lives in
- * arch/arm/src/t113/t113_cpuboot.c.
- */
-
-int up_cpu_start(int cpu);
 #endif
 
 #ifdef CONFIG_BOARDCTL_BOOT_IMAGE

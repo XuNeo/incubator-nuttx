@@ -2548,17 +2548,6 @@ void t113_serial_dma_poll(void)
 
 void arm_earlyserialinit(void)
 {
-#ifdef CONFIG_BMP
-  /* BMP plan-B: CPU0 owns the physical UART(s); CPU1+ gets its console
-   * via rpmsg_uart (see t113_rptun_bmp.c:rpmsg_serialinit).  Skip HW config
-   * on secondaries so they do not reprogram CPU0's UART mid-boot.
-   */
-
-  if (this_cpu() != 0)
-    {
-      return;
-    }
-#endif
 
   /* Configure all UARTs (except the CONSOLE UART) and disable interrupts */
 
@@ -2624,17 +2613,6 @@ void arm_earlyserialinit(void)
 
 void arm_serialinit(void)
 {
-#ifdef CONFIG_BMP
-  /* BMP plan-B: only CPU0 registers the physical UART inodes.
-   * CPU1+ /dev/console is provided by rpmsg_uart from t113_rptun_init().
-   */
-
-  if (this_cpu() != 0)
-    {
-      return;
-    }
-#endif
-
 #ifdef CONSOLE_DEV
   uart_register("/dev/console", &CONSOLE_DEV);
 #endif
@@ -2668,15 +2646,6 @@ void arm_serialinit(void)
 
 void up_putc(int ch)
 {
-#ifdef CONFIG_BMP
-  /* BMP: CPU0 owns the physical UART; CPU1 uses rpmsg/ramlog. */
-
-  if (this_cpu() != 0)
-    {
-      return;
-    }
-#endif
-
 #ifdef HAVE_SERIAL_CONSOLE
   arm_lowputc(ch);
 #endif

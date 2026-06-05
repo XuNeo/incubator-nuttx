@@ -453,18 +453,6 @@ int t113_bringup(void)
   return OK;
 #endif
 
-#ifdef CONFIG_BMP
-  /* BMP: CPU1 is a pure task core.  Skip all peripheral probes and
-   * only attach rptun as slave; the console comes up later via
-   * rpmsg_uart on /dev/console (isconsole=true inside rpmsg_serialinit).
-   */
-
-  if (this_cpu() != 0)
-    {
-      return t113_rptun_init();
-    }
-#endif
-
 #ifdef CONFIG_T113_HWSPINLOCK
   /* Bring up the hardware spinlock module.  Must run after the CCU has
    * been initialized (done in arm_boot()) and before any consumer that
@@ -765,27 +753,6 @@ int t113_bringup(void)
        */
 
       ret = OK;
-    }
-#endif
-
-#ifdef CONFIG_BMP
-  /* CPU0 rptun master up, then wake CPU1.  T113 lacks PSCI, so CPU1
-   * never self-releases - nx_smp_start()'s up_cpu_start loop is a
-   * no-op under CONFIG_SMP_NCPUS=1 and we must call it ourselves.
-   */
-
-  ret = t113_rptun_init();
-  if (ret < 0)
-    {
-      syslog(LOG_ERR, "ERROR: t113_rptun_init (master) failed: %d\n", ret);
-      return ret;
-    }
-
-  ret = up_cpu_start(1);
-  if (ret < 0)
-    {
-      syslog(LOG_ERR, "ERROR: up_cpu_start(1) failed: %d\n", ret);
-      return ret;
     }
 #endif
 

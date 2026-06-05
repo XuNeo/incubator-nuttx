@@ -210,11 +210,6 @@ void arm_cpu_boot(int cpu)
 
   up_irqinitialize();
 
-#ifdef CONFIG_BMP
-  /* BMP: this core runs its own image with the timer as its main timer. */
-
-  nx_start();
-#else
   /* SMP: secondary CPUs need their own tick source, then enter IDLE.
    * T113 uses the per-CPU ARM generic timer, not the common armv7-a
    * arm_timer.c (which this chip does not build), so call the chip hook.
@@ -223,7 +218,6 @@ void arm_cpu_boot(int cpu)
   t113_timer_secondary_init();
 
   nx_idle_trampoline();
-#endif
 }
 #endif /* !CONFIG_UP */
 

@@ -22,12 +22,9 @@
 
 set(SRCS t113_boot.c t113_bringup.c t113_boot_jump.c)
 
-# slave and BMP both reuse the rptun_bmp backend (RPTUN_BMP); they are
-# build-time exclusive (slave sets T113_RPTUN_SLAVE, BMP does not).
+# AMP slave (core1): rptun slave on the RPTUN_BMP doorbell transport.
 if(CONFIG_RPTUN_BMP AND CONFIG_T113_RPTUN_SLAVE)
   list(APPEND SRCS t113_rptun_slave.c)
-elseif(CONFIG_RPTUN_BMP)
-  list(APPEND SRCS t113_rptun_bmp.c)
 endif()
 
 # core0 master loader for the remote cores it loads (core1 and/or DSP).
