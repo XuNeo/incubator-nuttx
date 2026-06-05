@@ -2618,7 +2618,7 @@ static int cdcacm_set_user_ops(FAR struct cdcacm_dev_s *dev,
 
   dev->user_ops  = ops;
   dev->user_priv = user_priv;
-  atomic_add(&dev->refcount, 1);  /* ops holder */
+  atomic_fetch_add(&dev->refcount, 1);  /* ops holder */
   spin_unlock_irqrestore(&dev->ops_lock, flags);
   return 0;
 }
@@ -3312,7 +3312,7 @@ bool cdcacm_acquire(FAR struct cdcacm_dev_s *dev)
 
   if (dev != NULL && !dev->closing)
     {
-      atomic_add(&dev->refcount, 1);
+      atomic_fetch_add(&dev->refcount, 1);
       return true;
     }
 
@@ -3342,7 +3342,7 @@ void cdcacm_release(FAR struct cdcacm_dev_s *dev)
       return;
     }
 
-  if (atomic_sub(&dev->refcount, 1) == 1)
+  if (atomic_fetch_sub(&dev->refcount, 1) == 1)
     {
       nxsem_post(&dev->close_done);
     }
@@ -3435,7 +3435,6 @@ int cdcacm_outstream_open(FAR struct cdcacm_outstream_s *stream,
   stream->common.putc  = cdcacm_outstream_putc;
   stream->common.puts  = cdcacm_outstream_puts;
   stream->common.flush = cdcacm_outstream_flush;
-  stream->common.none  = NULL;
   stream->dev          = dev;
 
   return OK;

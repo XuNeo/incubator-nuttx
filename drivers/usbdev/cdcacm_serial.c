@@ -1657,3 +1657,35 @@ void cdcacm_uninitialize(FAR struct usbdevclass_driver_s *classdev)
     }
 #endif
 }
+
+/****************************************************************************
+ * Name: cdcacm_uninitialize_instance
+ *
+ * Description:
+ *   Uninitialize a specific cdcacm instance.  Thin wrapper over
+ *   cdcacm_uninitialize() for callers (e.g. boardctl
+ *   BOARDIOC_USBDEV_DISCONNECT) that identify the instance by minor.
+ *
+ * Input Parameters:
+ *   minor     - CDCACM node minor number (unused: the class object carries
+ *               its own minor, snapshotted inside cdcacm_uninitialize).
+ *   classdev  - The class object returned by cdcacm_classobject().
+ *
+ * Returned Value:
+ *   OK when successful, -ENODEV if no class object was provided.
+ *
+ ****************************************************************************/
+
+int cdcacm_uninitialize_instance(int minor,
+                                 FAR struct usbdevclass_driver_s *classdev)
+{
+  UNUSED(minor);
+
+  if (classdev == NULL)
+    {
+      return -ENODEV;
+    }
+
+  cdcacm_uninitialize(classdev);
+  return OK;
+}
