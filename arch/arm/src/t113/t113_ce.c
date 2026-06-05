@@ -40,6 +40,8 @@
 #include <nuttx/kmalloc.h>
 #include <nuttx/crypto/crypto.h>
 
+#include <arch/barriers.h>
+
 #include "arm_internal.h"
 #include "hardware/t113_ce.h"
 #include "hardware/t113_ccu.h"

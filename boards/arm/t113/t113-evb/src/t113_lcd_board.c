@@ -280,8 +280,8 @@ static int x4b_backlight_init(void)
 {
   struct pwm_info_s info =
   {
-    .frequency = 1000,        /* 1 kHz */
-    .duty      = 0xffff,      /* full scale = 100 % */
+    .frequency           = 1000,    /* 1 kHz */
+    .channels[0].duty    = 0xffff,  /* full scale = 100 % */
   };
 
   int fd;

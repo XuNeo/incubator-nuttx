@@ -138,7 +138,6 @@ static const struct can_ops_s g_t113_can_ops =
   .co_txready       = t113_can_txready,
   .co_txempty       = t113_can_txempty,
   .co_cancel        = NULL,
-  .co_errhandle     = NULL,
 };
 
 #ifdef CONFIG_T113_CAN0

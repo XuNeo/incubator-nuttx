@@ -46,6 +46,7 @@
 #include "t113_hstimer.h"
 
 #include <arch/t113/irq.h>
+#include <arch/barriers.h>
 
 #if defined(CONFIG_TIMER) && \
     (defined(CONFIG_T113_HSTIMER0) || defined(CONFIG_T113_HSTIMER1))
