@@ -1385,8 +1385,16 @@ static inline uintptr_t *mmu_l1_getpgtable(void)
   ttbr0 = CP15_GET(TTBR0);
   pgtable = ttbr0 & TTBR0_BASE_MASK(0);
   return (uintptr_t *)(pgtable - PGTABLE_BASE_PADDR + PGTABLE_BASE_VADDR);
-#else
+#elif defined(CONFIG_ARCH_USE_MMU) || defined(CONFIG_LEGACY_PAGING)
   return (uintptr_t *)PGTABLE_BASE_VADDR;
+#else
+  /* No page table base is defined when the MMU is not configured (e.g. a
+   * Cortex-A SPL running with CONFIG_ARCH_USE_MMU disabled).  The L1
+   * page-table helpers are never invoked in that case, but the runtime
+   * mapping code in arm_mmu.c is still compiled, so provide a stub.
+   */
+
+  return NULL;
 #endif
 }
 #endif

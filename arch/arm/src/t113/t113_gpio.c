@@ -71,7 +71,7 @@ static inline irqstate_t gpio_lock(void)
 #ifdef CONFIG_T113_AMP
   if (g_gpio_hwlock != NULL)
     {
-      return hwspin_lock_irqsave(g_gpio_hwlock);
+      return hwspin_lock_irqsave(g_gpio_hwlock, T113_HWLOCK_ID_GPIO, 0);
     }
 
   return up_irq_save();
@@ -85,7 +85,7 @@ static inline void gpio_unlock(irqstate_t flags)
 #ifdef CONFIG_T113_AMP
   if (g_gpio_hwlock != NULL)
     {
-      hwspin_unlock_restore(g_gpio_hwlock, flags);
+      hwspin_unlock_restore(g_gpio_hwlock, T113_HWLOCK_ID_GPIO, flags);
       return;
     }
 

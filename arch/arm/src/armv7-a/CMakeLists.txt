@@ -113,8 +113,16 @@ if(CONFIG_ARCH_FPU)
   list(APPEND SRCS arm_fpucmp.c arm_fpuconfig.S)
 endif()
 
+if(NOT CONFIG_UP)
+  # Secondary-CPU bring-up (idle stacks, SCU/ACTLR.SMP cache coherency) is
+  # needed by both SMP and BMP: a BMP master still releases CPU1 and each
+  # core enables SCU coherency in arm_cpu_boot.
+  list(APPEND SRCS arm_cpuidlestack.c arm_scu.c)
+endif()
+
 if(CONFIG_SMP)
-  list(APPEND SRCS arm_cpustart.c arm_smpcall.c arm_cpuidlestack.c arm_scu.c)
+  # SMP-only cross-core scheduler IPI machinery.
+  list(APPEND SRCS arm_cpustart.c arm_smpcall.c)
 endif()
 
 if(CONFIG_ARM_PSCI)

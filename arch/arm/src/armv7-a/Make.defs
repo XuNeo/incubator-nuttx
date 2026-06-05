@@ -95,9 +95,16 @@ ifeq ($(CONFIG_ARCH_FPU),y)
   CMN_ASRCS += arm_fpuconfig.S
 endif
 
+ifneq ($(CONFIG_UP),y)
+  # Secondary-CPU bring-up (idle stacks, SCU/ACTLR.SMP cache coherency) is
+  # needed by both SMP and BMP: a BMP master still releases CPU1 and each
+  # core enables SCU coherency in arm_cpu_boot.
+  CMN_CSRCS += arm_cpuidlestack.c arm_scu.c
+endif
+
 ifeq ($(CONFIG_SMP),y)
-  CMN_CSRCS += arm_cpustart.c arm_smpcall.c arm_cpuidlestack.c
-  CMN_CSRCS += arm_scu.c
+  # SMP-only cross-core scheduler IPI machinery.
+  CMN_CSRCS += arm_cpustart.c arm_smpcall.c
 endif
 
 ifeq ($(CONFIG_ARM_PSCI),y)

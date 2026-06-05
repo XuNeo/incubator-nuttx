@@ -84,7 +84,7 @@ static inline irqstate_t ccu_lock(void)
 #ifdef CONFIG_T113_AMP
   if (g_ccu_hwlock != NULL)
     {
-      return hwspin_lock_irqsave(g_ccu_hwlock);
+      return hwspin_lock_irqsave(g_ccu_hwlock, T113_HWLOCK_ID_CCU, 0);
     }
 
   /* hwspinlock not yet wired up - boot-time access on a single CPU. */
@@ -100,7 +100,7 @@ static inline void ccu_unlock(irqstate_t flags)
 #ifdef CONFIG_T113_AMP
   if (g_ccu_hwlock != NULL)
     {
-      hwspin_unlock_restore(g_ccu_hwlock, flags);
+      hwspin_unlock_restore(g_ccu_hwlock, T113_HWLOCK_ID_CCU, flags);
       return;
     }
 

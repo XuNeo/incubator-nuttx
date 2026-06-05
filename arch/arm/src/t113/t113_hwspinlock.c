@@ -22,12 +22,14 @@
 
 /* T113-S3 hardware spinlock driver.
  *
- * Exposes the 32 lock units of the SPINLOCK module at 0x03005000 as
- * NuttX hwspinlock_dev_s instances via the generic framework defined in
- * include/nuttx/hwspinlock/hwspinlock.h.  Acquire is a TAS read (read 0
- * = lock granted, read 1 = busy); release is write 0.  Hooked from
- * t113_bringup.c when CONFIG_T113_HWSPINLOCK=y, after the CCU has been
- * initialized so the SPINLOCK clock and reset can be ungated.
+ * Exposes the 32 lock units of the SPINLOCK module at 0x03005000 as a
+ * single NuttX hwspinlock_dev_s controller via the generic framework
+ * defined in include/nuttx/hwspinlock/hwspinlock.h.  The framework
+ * selects the individual hardware lock by the 'id' argument passed to
+ * the ops.  Acquire is a TAS read (read 0 = lock granted, read 1 =
+ * busy); release is write 0.  Hooked from t113_bringup.c when
+ * CONFIG_T113_HWSPINLOCK=y, after the CCU has been initialized so the
+ * SPINLOCK clock and reset can be ungated.
  */
 
 /****************************************************************************
@@ -53,8 +55,10 @@
  * Private Function Prototypes
  ****************************************************************************/
 
-static bool t113_hwspinlock_trylock(FAR struct hwspinlock_dev_s *dev);
-static void t113_hwspinlock_unlock(FAR struct hwspinlock_dev_s *dev);
+static bool t113_hwspinlock_trylock(FAR struct hwspinlock_dev_s *dev,
+                                    int id, int priority);
+static void t113_hwspinlock_unlock(FAR struct hwspinlock_dev_s *dev,
+                                   int id);
 
 /****************************************************************************
  * Private Data
@@ -66,23 +70,29 @@ static const struct hwspinlock_ops_s g_t113_hwspinlock_ops =
   .unlock  = t113_hwspinlock_unlock,
 };
 
-static struct hwspinlock_dev_s
-  g_t113_hwspinlock_devs[T113_HWSPINLOCK_NUM_LOCKS];
+static struct hwspinlock_dev_s g_t113_hwspinlock_dev =
+{
+  .ops = &g_t113_hwspinlock_ops,
+};
 static bool g_t113_hwspinlock_ready;
 
 /****************************************************************************
  * Private Functions
  ****************************************************************************/
 
-static bool t113_hwspinlock_trylock(FAR struct hwspinlock_dev_s *dev)
+static bool t113_hwspinlock_trylock(FAR struct hwspinlock_dev_s *dev,
+                                    int id, int priority)
 {
   /* Read 0 means we just acquired the lock.  Read 1 means it was already
    * taken by someone else.  A successful acquire pairs with a DMB so that
    * subsequent loads/stores in the critical section cannot be reordered
-   * before the read that took the lock.
+   * before the read that took the lock.  'id' selects the hardware lock
+   * unit; 'priority' is unused by this hardware.
    */
 
-  if (getreg32(T113_HWSPINLOCK_LOCK(dev->id)) == 0)
+  UNUSED(priority);
+
+  if (getreg32(T113_HWSPINLOCK_LOCK(id)) == 0)
     {
       UP_DMB();
       return true;
@@ -91,14 +101,14 @@ static bool t113_hwspinlock_trylock(FAR struct hwspinlock_dev_s *dev)
   return false;
 }
 
-static void t113_hwspinlock_unlock(FAR struct hwspinlock_dev_s *dev)
+static void t113_hwspinlock_unlock(FAR struct hwspinlock_dev_s *dev, int id)
 {
   /* Ensure all stores in the critical section are globally visible
    * before releasing the lock.
    */
 
   UP_DMB();
-  putreg32(0, T113_HWSPINLOCK_LOCK(dev->id));
+  putreg32(0, T113_HWSPINLOCK_LOCK(id));
 }
 
 /****************************************************************************
@@ -110,7 +120,6 @@ void t113_hwspinlock_initialize(void)
 #ifndef CONFIG_T113_RPTUN_SLAVE
   uint32_t val;
 #endif
-  int i;
 
   if (g_t113_hwspinlock_ready)
     {
@@ -146,16 +155,10 @@ void t113_hwspinlock_initialize(void)
   up_udelay(1);
 #endif
 
-  /* Construct the 32 dev_s instances.  All locks share the same ops and
-   * priority; only the id varies.
+  /* A single controller dev_s fronts all 32 hardware lock units.  The
+   * framework selects the individual lock by the 'id' it passes to the
+   * ops, so no per-lock instances are required.
    */
-
-  for (i = 0; i < T113_HWSPINLOCK_NUM_LOCKS; i++)
-    {
-      g_t113_hwspinlock_devs[i].id       = i;
-      g_t113_hwspinlock_devs[i].priority = 0;
-      g_t113_hwspinlock_devs[i].ops      = &g_t113_hwspinlock_ops;
-    }
 
   g_t113_hwspinlock_ready = true;
 }
@@ -168,5 +171,5 @@ FAR struct hwspinlock_dev_s *t113_hwspinlock_get(int id)
       return NULL;
     }
 
-  return &g_t113_hwspinlock_devs[id];
+  return &g_t113_hwspinlock_dev;
 }
