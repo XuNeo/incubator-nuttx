@@ -76,12 +76,7 @@ CONFIG_T113_RTC=y
 CONFIG_T113_UART0=y
 CONFIG_T113_WDT=y
 CONFIG_TESTING_OSTEST=y
-<<<<<<< HEAD
 CONFIG_TTY_FORCE_PANIC=y
-||||||| parent of 9ed00c280d9 (arch/t113: AMP support — dual-image NuttX with cross-core RPMsg)
-=======
-CONFIG_TTY_SIGINT=y
->>>>>>> 9ed00c280d9 (arch/t113: AMP support — dual-image NuttX with cross-core RPMsg)
 CONFIG_UART0_SERIAL_CONSOLE=y
 CONFIG_WATCHDOG_AUTOMONITOR=y
 CONFIG_WATCHDOG_AUTOMONITOR_TIMEOUT=10
