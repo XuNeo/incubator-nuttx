@@ -37,7 +37,7 @@
 
 #include <arch/irq.h>
 #include <arch/barriers.h>
-#include <arch/arm_a_r/cp15.h>
+#include <arch/armv7-a/cp15.h>
 
 #include "arm_internal.h"
 #include "scu.h"

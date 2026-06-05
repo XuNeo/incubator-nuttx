@@ -182,19 +182,20 @@ static int t113_pwm_start(FAR struct pwm_lowerhalf_s *dev,
    * Treat 0xFFFF as always-high (active = period + 1).
    */
 
-  if (info->duty >= 0xffff)
+  if (info->channels[0].duty >= 0xffff)
     {
       active = period + 1;
     }
   else
     {
-      active = (uint32_t)(((uint64_t)(period + 1) * info->duty) >> 16);
+      active = (uint32_t)(((uint64_t)(period + 1) *
+                           info->channels[0].duty) >> 16);
     }
 
-  /* Build PCR honoring polarity from info->cpol. */
+  /* Build PCR honoring polarity from info->channels[0].cpol. */
 
   pcr = prescaler & T113_PWM_PCR_PRESCAL_MASK;
-  if (info->cpol != PWM_CPOL_LOW)
+  if (info->channels[0].cpol != PWM_CPOL_LOW)
     {
       pcr |= T113_PWM_PCR_ACT_STA;
     }

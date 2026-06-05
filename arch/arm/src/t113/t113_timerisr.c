@@ -71,7 +71,8 @@ void up_timer_initialize(void)
 #include <nuttx/bits.h>
 
 #include <arch/irq.h>
-#include <arch/arm_a_r/cp15.h>
+#include <arch/barriers.h>
+#include <arch/armv7-a/cp15.h>
 
 #ifdef CONFIG_SCHED_TICKLESS
 #  include <nuttx/timers/arch_alarm.h>

@@ -42,7 +42,8 @@
 #include <nuttx/irq.h>
 #include <nuttx/arch.h>
 #include <nuttx/fs/ioctl.h>
-#include <nuttx/percpu.h>
+#include <nuttx/sched.h>
+#include <nuttx/spinlock.h>
 #include <nuttx/serial/serial.h>
 
 #include <arch/board/board.h>
@@ -91,6 +92,7 @@
 
 struct up_dev_s
 {
+  rspinlock_t lock;     /* Per-UART recursive spinlock (SMP serialization) */
   uint32_t uartbase;    /* Base address of UART registers */
   uint32_t baud;        /* Configured baud */
   uint32_t ier;         /* Saved IER value */
@@ -885,6 +887,43 @@ static inline uint32_t t113_uartdl(uint32_t baud)
 /****************************************************************************
  * Private Functions
  ****************************************************************************/
+
+/****************************************************************************
+ * Name: uart_spinlock / uart_spinunlock
+ *
+ * Description:
+ *   Enter/leave the per-UART critical section.  Each up_dev_s carries its
+ *   own recursive spinlock so RX/TX/DMA paths on different CPUs serialize
+ *   against this UART only.  nopreempt additionally holds the scheduler so
+ *   the holder cannot migrate while owning the lock.
+ *
+ ****************************************************************************/
+
+static irqstate_t uart_spinlock(FAR struct uart_dev_s *dev, bool nopreempt)
+{
+  FAR struct up_dev_s *priv = (FAR struct up_dev_s *)dev->priv;
+
+  if (nopreempt)
+    {
+      return rspin_lock_irqsave_nopreempt(&priv->lock);
+    }
+
+  return rspin_lock_irqsave(&priv->lock);
+}
+
+static void uart_spinunlock(FAR struct uart_dev_s *dev, bool nopreempt,
+                            irqstate_t flags)
+{
+  FAR struct up_dev_s *priv = (FAR struct up_dev_s *)dev->priv;
+
+  if (nopreempt)
+    {
+      rspin_unlock_irqrestore_nopreempt(&priv->lock, flags);
+      return;
+    }
+
+  rspin_unlock_irqrestore(&priv->lock, flags);
+}
 
 /****************************************************************************
  * Name: up_setup

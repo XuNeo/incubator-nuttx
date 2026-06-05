@@ -387,6 +387,30 @@ config SMP_DEFAULT_CPUSET
 
 endif # SMP
 
+config BMP
+	bool "Bound Multi-Processing (BMP)"
+	default n
+	depends on ARCH_HAVE_MULTICPU
+	---help---
+		Enables Bound Multi-Processing (BMP) on a multi-CPU platform: each
+		core runs an independent OS image, but a master core releases the
+		secondary cores at boot.  Unlike SMP, there is no shared scheduler
+		across cores.
+
+		This is the backport-compat counterpart to the upstream UP/SMP/BMP
+		multiprocessing choice, where BMP coexists with the standalone SMP
+		option above.
+
+config UP
+	bool
+	default y if !SMP && !BMP
+	---help---
+		Uni-Processor (single core).  Derived backport-compat symbol: it is
+		set automatically when neither SMP nor BMP is selected, matching the
+		upstream multiprocessing model where UP is the default member of a
+		UP/SMP/BMP choice.  Secondary-CPU bring-up code is compiled out when
+		CONFIG_UP is set.
+
 choice
 	prompt "Initialization Task"
 	default INIT_ENTRY if !BUILD_KERNEL
