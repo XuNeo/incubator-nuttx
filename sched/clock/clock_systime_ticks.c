@@ -72,14 +72,18 @@ clock_t clock_systime_ticks(void)
     };
 
   clock_systime_timespec(&ts);
-  return clock_time2ticks_floor(&ts);
+  return clock_time2ticks_floor(&ts) + INITIAL_SYSTEM_TIMER_TICKS;
 #elif defined(CONFIG_ALARM_ARCH) || \
       defined(CONFIG_TIMER_ARCH) || \
       defined(CONFIG_SCHED_TICKLESS)
   clock_t ticks = 0;
 
-  up_timer_gettick(&ticks);
-  return ticks;
+  if (up_timer_gettick(&ticks) < 0)
+    {
+      return 0;
+    }
+
+  return ticks + INITIAL_SYSTEM_TIMER_TICKS;
 #else
   return clock_get_sched_ticks();
 #endif

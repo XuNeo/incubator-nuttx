@@ -105,7 +105,8 @@ int sysinfo(FAR struct sysinfo *info)
       info->freeram  += pginfo.nfree  << MM_PGSHIFT;
 #endif
 
-      info->uptime   = TICK2SEC(clock_systime_ticks());
+      info->uptime   = TICK2SEC(clock_systime_ticks() -
+                                INITIAL_SYSTEM_TIMER_TICKS);
       info->procs    = CONFIG_SMP_NCPUS;
       info->mem_unit = 1;
     }
